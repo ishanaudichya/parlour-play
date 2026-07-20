@@ -6,9 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "simulate": "tsx scripts/simulate.ts",
+    "simulate:uno": "tsx scripts/simulate-uno.ts",
+    "simulate:teenpatti": "tsx scripts/simulate-teenpatti.ts",
+    "simulate:monodeal": "tsx scripts/simulate-monodeal.ts",
+    "simulate:mafia": "tsx scripts/simulate-mafia.ts",
+    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
+    "framer-motion": "^12.42.2",
+    "nanoid": "^6.0.0",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -21,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

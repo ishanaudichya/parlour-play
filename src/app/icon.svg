@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#0c0a12"/>
+  <rect x="3" y="3" width="58" height="58" rx="9" fill="none" stroke="#9a7a41" stroke-width="1.5"/>
+  <circle cx="32" cy="32" r="20" fill="none" stroke="#c69f58" stroke-width="1.2"/>
+  <text x="32" y="42" text-anchor="middle" font-family="Georgia, serif" font-weight="900" font-size="30" fill="#dcb975">P</text>
+  <path d="M32,6 l3,4 -3,4 -3,-4 Z" fill="#dcb975"/>
+  <path d="M32,50 l3,4 -3,4 -3,-4 Z" fill="#dcb975"/>
+</svg>
