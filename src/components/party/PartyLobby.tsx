@@ -9,7 +9,7 @@ import { GAME_META } from "@/lib/games/registry";
 import type { GameType } from "@/lib/games/types";
 import { PARTY_MAX, type PartyMove, type PartyView } from "@/lib/party/types";
 
-const GAME_ORDER: GameType[] = ["coup", "uno", "monodeal", "teenpatti", "mafia"];
+const GAME_ORDER: GameType[] = ["coup", "uno", "monodeal", "teenpatti", "mafia", "battleship"];
 
 function GameCard({
   type,

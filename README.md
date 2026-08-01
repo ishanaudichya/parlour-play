@@ -1,9 +1,9 @@
-# PARLOUR — five games, one table
+# PARLOUR — six games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Five games, five design languages:**
+**Six games, six design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -12,6 +12,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Monopoly Deal** | 2–5 | cream banknote ledger |
 | **Teen Patti** | 2–8 | midnight casino felt |
 | **Mafia** | 6–8 | rain-soaked noir case file |
+| **Battleship** | 2 | phosphor-green sonar ops room |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -70,6 +71,7 @@ npm run simulate:uno        # UNO         (3000 games)
 npm run simulate:teenpatti  # Teen Patti  (2500 sessions + 30 ranking unit tests)
 npm run simulate:monodeal   # Monopoly Deal (2000 games, deck-of-106 conservation)
 npm run simulate:mafia      # Mafia       (1500 games + privacy/phase invariants)
+npm run simulate:battleship # Battleship  (3000 games + secrecy leak checks)
 npm run simulate:all
 ```
 
@@ -90,3 +92,6 @@ npm run simulate:all
 - **Mafia** — moderator-free 6–8 player social deduction with simultaneous Mafia /
   Detective / Doctor night actions, private investigations, 90 s in-person discussion,
   secret ballots, one tied-vote runoff, public role reveals, and faction-wide victories.
+- **Battleship** — classic 10×10, fleet of 5/4/3/3/2, simultaneous private placement
+  (90 s, auto-scatter), hit-shoots-again house rule, 45 s turns auto-fire; sunk ships are
+  revealed, hidden ships never leave the server.

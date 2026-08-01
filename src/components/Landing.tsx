@@ -15,11 +15,12 @@ import { GAME_META } from "@/lib/games/registry";
 
 /* One artifact from each game, fanned on the table: the whole pitch in one image. */
 const FAN = [
-  { key: "coup", rot: -18, x: -164, y: 28, w: 86 },
-  { key: "uno", rot: -9, x: -84, y: 8, w: 84 },
-  { key: "mafia", rot: 0, x: 0, y: -2, w: 84 },
-  { key: "monodeal", rot: 9, x: 84, y: 8, w: 86 },
-  { key: "teenpatti", rot: 18, x: 164, y: 28, w: 86 },
+  { key: "coup", rot: -21, x: -196, y: 36, w: 82 },
+  { key: "uno", rot: -13, x: -118, y: 14, w: 80 },
+  { key: "mafia", rot: -4, x: -40, y: 0, w: 80 },
+  { key: "battleship", rot: 4, x: 40, y: 0, w: 80 },
+  { key: "monodeal", rot: 13, x: 118, y: 14, w: 82 },
+  { key: "teenpatti", rot: 21, x: 196, y: 36, w: 82 },
 ] as const;
 
 function HeroArtifact({ k }: { k: (typeof FAN)[number]["key"] }) {
@@ -44,6 +45,28 @@ function HeroArtifact({ k }: { k: (typeof FAN)[number]["key"] }) {
           <span className="text-3xl text-[#c75164]">◆</span>
           <span className="mt-2 text-[10px] font-semibold tracking-[0.28em]">MAFIA</span>
           <span className="mt-1 text-[6px] uppercase tracking-[0.18em] text-[#827c72]">sealed role</span>
+        </div>
+      );
+    case "battleship":
+      return (
+        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#2e5d4a] bg-[radial-gradient(circle_at_50%_30%,#0c1d2b,#050b12_75%)]">
+          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
+            {Array.from({ length: 6 }, (_, i) => (
+              <line key={`v${i}`} x1={7 + i * 7.2} y1="10" x2={7 + i * 7.2} y2="46" stroke="#3dde9b" strokeOpacity="0.22" strokeWidth="0.5" />
+            ))}
+            {Array.from({ length: 6 }, (_, i) => (
+              <line key={`h${i}`} x1="7" y1={10 + i * 7.2} x2="43" y2={10 + i * 7.2} stroke="#3dde9b" strokeOpacity="0.22" strokeWidth="0.5" />
+            ))}
+            <rect x="14" y="24.4" width="21.6" height="7.2" rx="3.6" fill="#3dde9b" fillOpacity="0.3" stroke="#3dde9b" strokeWidth="0.6" />
+            <circle cx="32.2" cy="20.8" r="2" fill="#ff7a45" />
+            <circle cx="18" cy="42" r="1.2" fill="#7ba8c0" fillOpacity="0.7" />
+            <text x="25" y="59" textAnchor="middle" fontSize="4.6" fontWeight="700" letterSpacing="1.6" fill="#6dffc0">
+              BATTLESHIP
+            </text>
+            <text x="25" y="65" textAnchor="middle" fontSize="2.6" letterSpacing="0.9" fill="#5b7a8c">
+              B-7 · DIRECT HIT
+            </text>
+          </svg>
         </div>
       );
   }
@@ -98,7 +121,10 @@ export function Landing() {
     <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
       {/* hero: one card from each game under the neon sign */}
       <div className="relative mb-9 flex flex-col items-center">
-        <div className="relative h-[172px] w-[360px] sm:w-[440px]" aria-hidden>
+        <div
+          className="relative h-[130px] w-[360px] origin-bottom scale-[0.68] sm:h-[176px] sm:w-[520px] sm:scale-100"
+          aria-hidden
+        >
           {FAN.map((f, i) => (
             <div key={f.key} className="absolute left-1/2 top-4" style={{ width: f.w, marginLeft: -f.w / 2 }}>
               <motion.div
@@ -137,7 +163,7 @@ export function Landing() {
           className="mt-4 flex items-center gap-3"
         >
           <span className="shairline w-12" />
-          <span className="slabel">five games · one table</span>
+          <span className="slabel">six games · one table</span>
           <span className="shairline w-12" />
         </motion.div>
       </div>

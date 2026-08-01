@@ -1,6 +1,6 @@
 /** Contract every game module implements. The party layer is the only consumer. */
 
-export type GameType = "coup" | "uno" | "monodeal" | "teenpatti" | "mafia";
+export type GameType = "coup" | "uno" | "monodeal" | "teenpatti" | "mafia" | "battleship";
 
 export interface GamePlayer {
   id: string;

@@ -3,6 +3,8 @@
 import type { ComponentType } from "react";
 import type { GameType } from "@/lib/games/types";
 import type { GameScreenProps } from "@/lib/party/types";
+import { BattleshipScreen } from "./battleship/BattleshipScreen";
+import { BattleshipPoster } from "./battleship/Poster";
 import { CoupScreen } from "./coup/CoupScreen";
 import { CoupPoster } from "./coup/Poster";
 import { MafiaScreen } from "./mafia/MafiaScreen";
@@ -29,4 +31,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   monodeal: { Screen: asScreen(MonoDealScreen), Poster: MonoDealPoster },
   teenpatti: { Screen: asScreen(TeenPattiScreen), Poster: TeenPattiPoster },
   mafia: { Screen: asScreen(MafiaScreen), Poster: MafiaPoster },
+  battleship: { Screen: asScreen(BattleshipScreen), Poster: BattleshipPoster },
 };

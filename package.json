@@ -12,7 +12,8 @@
     "simulate:teenpatti": "tsx scripts/simulate-teenpatti.ts",
     "simulate:monodeal": "tsx scripts/simulate-monodeal.ts",
     "simulate:mafia": "tsx scripts/simulate-mafia.ts",
-    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts"
+    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts && tsx scripts/simulate-battleship.ts",
+    "simulate:battleship": "tsx scripts/simulate-battleship.ts"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
