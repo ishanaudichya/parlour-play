@@ -5,6 +5,8 @@ import type { GameType } from "@/lib/games/types";
 import type { GameScreenProps } from "@/lib/party/types";
 import { BattleshipScreen } from "./battleship/BattleshipScreen";
 import { BattleshipPoster } from "./battleship/Poster";
+import { Connect4Screen } from "./connect4/Connect4Screen";
+import { Connect4Poster } from "./connect4/Poster";
 import { CoupScreen } from "./coup/CoupScreen";
 import { CoupPoster } from "./coup/Poster";
 import { MafiaScreen } from "./mafia/MafiaScreen";
@@ -32,4 +34,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   teenpatti: { Screen: asScreen(TeenPattiScreen), Poster: TeenPattiPoster },
   mafia: { Screen: asScreen(MafiaScreen), Poster: MafiaPoster },
   battleship: { Screen: asScreen(BattleshipScreen), Poster: BattleshipPoster },
+  connect4: { Screen: asScreen(Connect4Screen), Poster: Connect4Poster },
 };

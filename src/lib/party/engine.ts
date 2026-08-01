@@ -55,6 +55,11 @@ export function joinParty(s: PartyState, name: string, ids: { playerId: string; 
   log(s, "join", { member: name });
 }
 
+/** Has play finished — by win OR by draw? (A drawn game has no result to tally.) */
+function gameIsOver(mod: GameModule, state: unknown): boolean {
+  return mod.isOver ? mod.isOver(state) : mod.result(state) !== null;
+}
+
 /** Record the finished game's winner in the tallies exactly once. */
 function settleGame(s: PartyState, registry: Registry) {
   const g = s.game;
@@ -77,7 +82,8 @@ function startGame(s: PartyState, memberId: string, type: GameType, now: number,
   if (memberId !== s.hostId) err("Only the host can start a game.");
   const mod = registry[type];
   if (!mod) err("That game isn't available.");
-  if (s.phase === "game" && s.game && !s.game.tallied && registry[s.game.type]?.result(s.game.state) === null)
+  const running = registry[s.game?.type as GameType];
+  if (s.phase === "game" && s.game && !s.game.tallied && running && !gameIsOver(running, s.game.state))
     err("A game is already in progress.");
   const players = s.members.slice(0, mod!.maxPlayers);
   if (players.length < mod!.minPlayers)
@@ -123,7 +129,7 @@ export function applyPartyMove(
         // mid-game: the game engine forfeits them so play keeps moving
         if (s.game && !s.game.tallied && s.game.players.includes(memberId)) {
           const mod = registry[s.game.type];
-          if (mod && mod.result(s.game.state) === null) {
+          if (mod && !gameIsOver(mod, s.game.state)) {
             mod.forfeit(s.game.state, memberId, now, rng);
             settleGame(s, registry);
           }

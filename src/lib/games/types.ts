@@ -1,6 +1,6 @@
 /** Contract every game module implements. The party layer is the only consumer. */
 
-export type GameType = "coup" | "uno" | "monodeal" | "teenpatti" | "mafia" | "battleship";
+export type GameType = "coup" | "uno" | "monodeal" | "teenpatti" | "mafia" | "battleship" | "connect4";
 
 export interface GamePlayer {
   id: string;
@@ -38,8 +38,15 @@ export interface GameModule<S = unknown, V = unknown, M = unknown> {
    * return the public view in that case (no hidden cards for anyone).
    */
   redact(state: S, viewerId: string, now: number): V;
-  /** Non-null once the game is decided. */
+  /** Non-null once the game has a WINNER. Null while running — and also for a
+      drawn game, which has no winner to tally. See `isOver`. */
   result(state: S): GameResult | null;
+  /**
+   * Whether play has finished, win or draw. Defaults to `result() !== null`;
+   * only games that can end without a winner (e.g. a drawn board) need to
+   * implement it, otherwise the party would think they were still running.
+   */
+  isOver?(state: S): boolean;
   /**
    * Remove a player permanently (they left the party). Must leave the game in
    * a valid, progressing state: their turn is skipped forever, any pending

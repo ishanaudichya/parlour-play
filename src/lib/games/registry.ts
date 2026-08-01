@@ -1,4 +1,5 @@
 import { battleshipModule } from "./battleship";
+import { connect4Module } from "./connect4";
 import { coupModule } from "./coup/engine";
 import { mafiaModule } from "./mafia";
 import { monodealModule } from "./monodeal";
@@ -15,6 +16,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   teenpatti: teenpattiModule as GameModule,
   mafia: mafiaModule as GameModule,
   battleship: battleshipModule as GameModule,
+  connect4: connect4Module as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -28,4 +30,5 @@ export const GAME_META: Record<
   teenpatti: { title: "Teen Patti", tagline: "Blind bets & bold bluffs", min: 2, max: 8, accent: "#0d8a5f" },
   mafia: { title: "Mafia", tagline: "Trust no one after dark", min: 6, max: 8, accent: "#c75164" },
   battleship: { title: "Battleship", tagline: "Call your shots, sink their fleet", min: 2, max: 2, accent: "#3dde9b" },
+  connect4: { title: "Four in a Row", tagline: "Drop, stack, connect four", min: 2, max: 2, accent: "#f5b23e" },
 };

@@ -15,12 +15,13 @@ import { GAME_META } from "@/lib/games/registry";
 
 /* One artifact from each game, fanned on the table: the whole pitch in one image. */
 const FAN = [
-  { key: "coup", rot: -21, x: -196, y: 36, w: 82 },
-  { key: "uno", rot: -13, x: -118, y: 14, w: 80 },
-  { key: "mafia", rot: -4, x: -40, y: 0, w: 80 },
-  { key: "battleship", rot: 4, x: 40, y: 0, w: 80 },
-  { key: "monodeal", rot: 13, x: 118, y: 14, w: 82 },
-  { key: "teenpatti", rot: 21, x: 196, y: 36, w: 82 },
+  { key: "coup", rot: -24, x: -232, y: 44, w: 80 },
+  { key: "uno", rot: -16, x: -152, y: 20, w: 78 },
+  { key: "mafia", rot: -8, x: -74, y: 4, w: 78 },
+  { key: "connect4", rot: 0, x: 0, y: -2, w: 78 },
+  { key: "battleship", rot: 8, x: 74, y: 4, w: 78 },
+  { key: "monodeal", rot: 16, x: 152, y: 20, w: 80 },
+  { key: "teenpatti", rot: 24, x: 232, y: 44, w: 80 },
 ] as const;
 
 function HeroArtifact({ k }: { k: (typeof FAN)[number]["key"] }) {
@@ -45,6 +46,35 @@ function HeroArtifact({ k }: { k: (typeof FAN)[number]["key"] }) {
           <span className="text-3xl text-[#c75164]">◆</span>
           <span className="mt-2 text-[10px] font-semibold tracking-[0.28em]">MAFIA</span>
           <span className="mt-1 text-[6px] uppercase tracking-[0.18em] text-[#827c72]">sealed role</span>
+        </div>
+      );
+    case "connect4":
+      return (
+        <div className="relative aspect-5/7 w-full overflow-hidden bg-[linear-gradient(160deg,#1b3fa0,#12266b)]">
+          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
+            {Array.from({ length: 4 }, (_, cx) =>
+              Array.from({ length: 4 }, (_, cy) => {
+                const x = 11 + cx * 9.4;
+                const y = 15 + cy * 9.4;
+                const red = (cx === 1 && cy === 3) || (cx === 2 && cy === 2);
+                const gold = (cx === 0 && cy === 3) || (cx === 3 && cy === 3);
+                return (
+                  <circle
+                    key={`${cx}-${cy}`}
+                    cx={x}
+                    cy={y}
+                    r="3.6"
+                    fill={red ? "#e2483f" : gold ? "#f5b23e" : "#0f1d4d"}
+                    stroke={red || gold ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)"}
+                    strokeWidth="0.5"
+                  />
+                );
+              })
+            )}
+            <text x="25" y="60" textAnchor="middle" fontSize="4.4" fontWeight="700" letterSpacing="1" fill="#ffe0a3">
+              FOUR IN A ROW
+            </text>
+          </svg>
         </div>
       );
     case "battleship":
@@ -122,7 +152,7 @@ export function Landing() {
       {/* hero: one card from each game under the neon sign */}
       <div className="relative mb-9 flex flex-col items-center">
         <div
-          className="relative h-[130px] w-[360px] origin-bottom scale-[0.68] sm:h-[176px] sm:w-[520px] sm:scale-100"
+          className="relative h-[122px] w-[340px] origin-bottom scale-[0.56] sm:h-[184px] sm:w-[600px] sm:scale-[0.88] lg:scale-100"
           aria-hidden
         >
           {FAN.map((f, i) => (
@@ -163,7 +193,7 @@ export function Landing() {
           className="mt-4 flex items-center gap-3"
         >
           <span className="shairline w-12" />
-          <span className="slabel">six games · one table</span>
+          <span className="slabel">seven games · one table</span>
           <span className="shairline w-12" />
         </motion.div>
       </div>

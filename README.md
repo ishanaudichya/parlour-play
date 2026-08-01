@@ -1,9 +1,9 @@
-# PARLOUR — six games, one table
+# PARLOUR — seven games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Six games, six design languages:**
+**Seven games, seven design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -13,6 +13,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Teen Patti** | 2–8 | midnight casino felt |
 | **Mafia** | 6–8 | rain-soaked noir case file |
 | **Battleship** | 2 | phosphor-green sonar ops room |
+| **Four in a Row** | 2 | chunky blue arcade cabinet |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -72,6 +73,7 @@ npm run simulate:teenpatti  # Teen Patti  (2500 sessions + 30 ranking unit tests
 npm run simulate:monodeal   # Monopoly Deal (2000 games, deck-of-106 conservation)
 npm run simulate:mafia      # Mafia       (1500 games + privacy/phase invariants)
 npm run simulate:battleship # Battleship  (3000 games + secrecy leak checks)
+npm run simulate:connect4   # Four in a Row (5000 games + independent win-line verification)
 npm run simulate:all
 ```
 
@@ -95,3 +97,6 @@ npm run simulate:all
 - **Battleship** — classic 10×10, fleet of 5/4/3/3/2, simultaneous private placement
   (90 s, auto-scatter), hit-shoots-again house rule, 45 s turns auto-fire; sunk ships are
   revealed, hidden ships never leave the server.
+- **Four in a Row** — 7×6 board, drop to connect four in any direction, winning line
+  highlighted; 45 s turns auto-drop, draws supported (a full board with no line ends the
+  game with no winner — see `isOver` in the `GameModule` contract).
