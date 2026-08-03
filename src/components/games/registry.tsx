@@ -3,6 +3,8 @@
 import type { ComponentType } from "react";
 import type { GameType } from "@/lib/games/types";
 import type { GameScreenProps } from "@/lib/party/types";
+import { AvalonScreen } from "./avalon/AvalonScreen";
+import { AvalonPoster } from "./avalon/Poster";
 import { BattleshipScreen } from "./battleship/BattleshipScreen";
 import { BattleshipPoster } from "./battleship/Poster";
 import { Connect4Screen } from "./connect4/Connect4Screen";
@@ -13,6 +15,8 @@ import { MafiaScreen } from "./mafia/MafiaScreen";
 import { MafiaPoster } from "./mafia/Poster";
 import { MonoDealScreen } from "./monodeal/MonoDealScreen";
 import { MonoDealPoster } from "./monodeal/Poster";
+import { SecretHitlerScreen } from "./secrethitler/SecretHitlerScreen";
+import { SecretHitlerPoster } from "./secrethitler/Poster";
 import { TeenPattiPoster } from "./teenpatti/Poster";
 import { TeenPattiScreen } from "./teenpatti/TeenPattiScreen";
 import { UnoPoster } from "./uno/Poster";
@@ -35,4 +39,6 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   mafia: { Screen: asScreen(MafiaScreen), Poster: MafiaPoster },
   battleship: { Screen: asScreen(BattleshipScreen), Poster: BattleshipPoster },
   connect4: { Screen: asScreen(Connect4Screen), Poster: Connect4Poster },
+  avalon: { Screen: asScreen(AvalonScreen), Poster: AvalonPoster },
+  secrethitler: { Screen: asScreen(SecretHitlerScreen), Poster: SecretHitlerPoster },
 };

@@ -1,8 +1,10 @@
+import { avalonModule } from "./avalon";
 import { battleshipModule } from "./battleship";
 import { connect4Module } from "./connect4";
 import { coupModule } from "./coup/engine";
 import { mafiaModule } from "./mafia";
 import { monodealModule } from "./monodeal";
+import { secrethitlerModule } from "./secrethitler";
 import { teenpattiModule } from "./teenpatti";
 import { unoModule } from "./uno";
 import type { GameModule, GameType } from "./types";
@@ -17,6 +19,8 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   mafia: mafiaModule as GameModule,
   battleship: battleshipModule as GameModule,
   connect4: connect4Module as GameModule,
+  avalon: avalonModule as GameModule,
+  secrethitler: secrethitlerModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -31,4 +35,6 @@ export const GAME_META: Record<
   mafia: { title: "Mafia", tagline: "Trust no one after dark", min: 6, max: 8, accent: "#c75164" },
   battleship: { title: "Battleship", tagline: "Call your shots, sink their fleet", min: 2, max: 2, accent: "#3dde9b" },
   connect4: { title: "Four in a Row", tagline: "Drop, stack, connect four", min: 2, max: 2, accent: "#f5b23e" },
+  avalon: { title: "Avalon", tagline: "Merlin knows. The Assassin waits.", min: 5, max: 8, accent: "#8fb8de" },
+  secrethitler: { title: "Secret Hitler", tagline: "Pass policies, trust no cabinet", min: 5, max: 8, accent: "#e05a33" },
 };

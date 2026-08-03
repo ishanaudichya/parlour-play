@@ -26,24 +26,26 @@
   --color-blood-600: #8c2f3f;
   --color-blood-900: #33121a;
 
-  /* shell — "midnight lounge": indigo velvet, coral neon, warm cream */
-  --color-night-950: #07080d;
-  --color-night-900: #0a0c14;
-  --color-night-850: #0e1120;
-  --color-night-800: #131728;
-  --color-night-700: #1b2036;
-  --color-night-600: #262c47;
-  --color-linen-100: #f1ece1;
-  --color-linen-300: #cfc9bc;
-  --color-linen-500: #8f94a8;
-  --color-coral-200: #ffd3c4;
-  --color-coral-300: #ffb199;
-  --color-coral-400: #ff8f70;
-  --color-coral-500: #f4744f;
-  --color-coral-600: #c9553a;
+  /* shell — "the table at midnight": walnut, oxblood felt, brass, lamplight.
+     (token NAMES are legacy — night-* is now wood/espresso, coral-* is brass) */
+  --color-night-950: #100905;
+  --color-night-900: #160d07;
+  --color-night-850: #1d120a;
+  --color-night-800: #26170d;
+  --color-night-700: #342112;
+  --color-night-600: #4c331d;
+  --color-linen-100: #f2ead8;
+  --color-linen-300: #d8cdb4;
+  --color-linen-500: #9c8d76;
+  --color-coral-200: #f4dcae;
+  --color-coral-300: #e8c087;
+  --color-coral-400: #d4a05c;
+  --color-coral-500: #b97f3e;
+  --color-coral-600: #8f5c28;
 
   --font-display: var(--font-cinzel), serif;
-  --font-shell: var(--font-fraunces), Georgia, serif;
+  --font-shell: var(--font-young), Georgia, serif;
+  --font-hand: var(--font-caveat), cursive;
   --font-sans: var(--font-inter), system-ui, sans-serif;
 
   --ease-swift: cubic-bezier(0.16, 1, 0.3, 1);
@@ -87,11 +89,11 @@ html {
 
 body {
   min-height: 100dvh;
-  /* the lounge: indigo night with a warm lamp glow — game screens paint their own worlds */
+  /* lamplit walnut — game screens paint their own worlds on top */
   background:
-    radial-gradient(1000px 600px at 50% -10%, rgb(255 143 112 / 0.07) 0%, transparent 55%),
-    radial-gradient(1200px 780px at 50% -18%, #1d2338 0%, transparent 62%),
-    linear-gradient(180deg, #10131f 0%, #0a0c14 100%);
+    radial-gradient(900px 560px at 50% -8%, rgb(232 192 135 / 0.1) 0%, transparent 55%),
+    radial-gradient(1200px 800px at 50% -15%, #3a2413 0%, transparent 60%),
+    linear-gradient(180deg, #1c1009 0%, #0f0805 100%);
   background-attachment: fixed;
   color: var(--color-linen-100);
   font-family: var(--font-sans);
@@ -112,12 +114,16 @@ body::before {
 }
 
 ::selection {
-  background: rgb(244 116 79 / 0.35);
+  background: rgb(212 160 92 / 0.35);
 }
 
 /* ------- shell typography ------- */
 .font-shell {
   font-family: var(--font-shell);
+}
+
+.font-hand {
+  font-family: var(--font-hand);
 }
 
 .slabel {
@@ -129,16 +135,18 @@ body::before {
   color: var(--color-linen-500);
 }
 
+/* engraved brass — the wordmark treatment (legacy class name) */
 .neon-text {
-  color: var(--color-coral-300);
-  text-shadow:
-    0 0 16px rgb(255 143 112 / 0.45),
-    0 0 44px rgb(255 143 112 / 0.16);
+  background: linear-gradient(180deg, #f6e3ba 0%, #d4a05c 52%, #8f5c28 88%, #c69a5a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.55));
 }
 
 .shairline {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(139 147 173 / 0.5), transparent);
+  background: linear-gradient(90deg, transparent, rgb(212 160 92 / 0.45), transparent);
 }
 
 /* ------- typography helpers ------- */

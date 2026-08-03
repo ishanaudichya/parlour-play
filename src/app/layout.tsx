@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cinzel, Fraunces, Inter } from "next/font/google";
+import { Caveat, Cinzel, Inter, Young_Serif } from "next/font/google";
 import "./globals.css";
 
 const cinzel = Cinzel({
@@ -8,11 +8,16 @@ const cinzel = Cinzel({
   weight: ["400", "600", "700", "900"],
 });
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const youngSerif = Young_Serif({
+  variable: "--font-young",
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  style: ["normal", "italic"],
+  weight: ["400"],
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const inter = Inter({
@@ -44,7 +49,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${cinzel.variable} ${fraunces.variable} ${inter.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${cinzel.variable} ${youngSerif.variable} ${caveat.variable} ${inter.variable} h-full antialiased`}
+    >
       <body className="relative min-h-full flex flex-col">
         <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>
       </body>

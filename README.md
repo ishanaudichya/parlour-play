@@ -1,9 +1,9 @@
-# PARLOUR — seven games, one table
+# PARLOUR — nine games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Seven games, seven design languages:**
+**Nine games, nine design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -14,6 +14,8 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Mafia** | 6–8 | rain-soaked noir case file |
 | **Battleship** | 2 | phosphor-green sonar ops room |
 | **Four in a Row** | 2 | chunky blue arcade cabinet |
+| **Avalon** | 5–8 | moonlit Camelot, illuminated manuscript |
+| **Secret Hitler** | 5–8 | 1930s ministry letterpress |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -74,6 +76,8 @@ npm run simulate:monodeal   # Monopoly Deal (2000 games, deck-of-106 conservatio
 npm run simulate:mafia      # Mafia       (1500 games + privacy/phase invariants)
 npm run simulate:battleship # Battleship  (3000 games + secrecy leak checks)
 npm run simulate:connect4   # Four in a Row (5000 games + independent win-line verification)
+npm run simulate:avalon     # Avalon      (3000 games + role-knowledge privacy invariants)
+npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation & privacy invariants)
 npm run simulate:all
 ```
 
@@ -100,3 +104,11 @@ npm run simulate:all
 - **Four in a Row** — 7×6 board, drop to connect four in any direction, winning line
   highlighted; 45 s turns auto-drop, draws supported (a full board with no line ends the
   game with no winner — see `isOver` in the `GameModule` contract).
+- **Avalon** — The Resistance: Avalon for 5–8: Merlin/Assassin always, Percival & Morgana
+  at 7+; public simultaneous votes with a 5-reject evil win, shuffled quest cards (good
+  cannot fail), the two-fail fourth quest at 7+, and the assassination endgame. Faction
+  victories tally for every winner; rage-quitting concedes for your faction.
+- **Secret Hitler** — 5–8 players: 6+11 policy deck, term-limited nominations, public
+  ballots, secret legislative sessions, the full presidential-power track per player count
+  (peek / investigate / special election / executions), veto after five fascist policies,
+  election-tracker chaos, and both Hitler endgames. Team wins tally for every member.

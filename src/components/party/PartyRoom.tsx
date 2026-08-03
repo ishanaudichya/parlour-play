@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { GAME_UI } from "@/components/games/registry";
-import { NeonMark, S_INPUT, SButton, SPanel } from "@/components/party/shell";
+import { FeltSurface, NeonMark, PaperCard, SButton, SPanel } from "@/components/party/shell";
 import { Icons, Toast } from "@/components/ui";
 import { clearSession, useSavedName } from "@/lib/client/session";
 import {
@@ -108,49 +108,77 @@ function JoinGate({
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4">
-      <SPanel className="w-full max-w-sm p-6 sm:p-7">
-        <div className="mb-5 text-center">
-          <div className="slabel mb-2">Joining party</div>
-          <div className="font-shell text-3xl font-semibold tracking-[0.3em] text-coral-300">{code}</div>
-          {names.length > 0 && (
-            <p className="mt-2 text-[12.5px] text-linen-500">
-              Here already: <span className="text-linen-300">{names.join(", ")}</span>
-            </p>
-          )}
+    <main className="flex flex-1 flex-col">
+      <FeltSurface>
+        <div className="flex flex-1 items-center justify-center px-4 py-10">
+          <PaperCard rotate={-1.4} className="w-full max-w-[400px] px-7 pb-7 pt-8">
+            {/* wax seal */}
+            <span
+              aria-hidden
+              className="absolute -right-4 -top-4 flex h-14 w-14 rotate-12 items-center justify-center rounded-full text-[#f2e2b8] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
+              style={{ background: "radial-gradient(circle at 38% 32%, #b23a48, #7d2532 70%)" }}
+            >
+              <span className="font-shell text-xl">P</span>
+            </span>
+
+            <div className="font-hand text-[32px] font-bold leading-none text-[#463d2e]">You&apos;re invited.</div>
+            <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.26em] text-[#8a7d68]">
+              Reserved · table
+            </div>
+            <div className="font-shell text-[34px] leading-tight tracking-[0.3em] text-[#4c331d]">{code}</div>
+            {names.length > 0 && (
+              <p className="mt-2 font-hand text-[16px] leading-snug text-[#7a6d58]">
+                already seated: <span className="text-[#5d5344]">{names.join(", ")}</span>
+              </p>
+            )}
+
+            {full ? (
+              <div className="mt-6">
+                <p className="font-hand text-[18px] font-semibold text-[#a63c2b]">
+                  ✗ every chair is taken ({PARTY_MAX} of {PARTY_MAX})
+                </p>
+                <button
+                  onClick={() => router.push("/")}
+                  className="mt-4 w-full rounded-[4px] border-[2px] border-[#6b4a2a] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b4a2a] transition hover:bg-[#6b4a2a]/10"
+                >
+                  Back to the door
+                </button>
+              </div>
+            ) : (
+              <>
+                <label
+                  className="mt-6 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a7d68]"
+                  htmlFor="join-name"
+                >
+                  Sign your name
+                </label>
+                <input
+                  id="join-name"
+                  value={name}
+                  maxLength={16}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && join()}
+                  onFocus={() => primeSound()}
+                  placeholder="write it here…"
+                  className="mt-1 w-full border-b-2 border-dashed border-[#a89878] bg-transparent pb-1 font-hand text-[26px] font-semibold text-[#2e2a24] outline-none placeholder:text-[#b3a68c] focus:border-[#b3402e]"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !name.trim()}
+                  onClick={join}
+                  className="mt-5 w-full -rotate-1 rounded-[4px] border-[2.5px] border-[#a63c2b] px-4 py-3 text-[13px] font-bold uppercase tracking-[0.24em] text-[#a63c2b] shadow-[inset_0_0_0_1.5px_rgba(166,60,43,0.35)] transition-all duration-150 hover:bg-[#a63c2b]/10 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35"
+                >
+                  {busy ? "Pulling up a chair…" : "⬢ Take a seat"}
+                </button>
+                <p className="mt-3 font-hand text-[15px] leading-snug text-[#8a7d68]">
+                  game already going? you&apos;ll watch from behind the chairs and get dealt into the next one.
+                </p>
+                {error && <p className="mt-3 font-hand text-[16px] font-semibold text-[#a63c2b]">✗ {error}</p>}
+              </>
+            )}
+          </PaperCard>
         </div>
-        {full ? (
-          <div className="text-center">
-            <p className="mb-4 text-[14px] text-blood-300">This party is full ({PARTY_MAX} people).</p>
-            <SButton className="w-full" onClick={() => router.push("/")}>
-              Return home
-            </SButton>
-          </div>
-        ) : (
-          <>
-            <label className="slabel mb-2 block" htmlFor="join-name">
-              Your name
-            </label>
-            <input
-              id="join-name"
-              value={name}
-              maxLength={16}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && join()}
-              onFocus={() => primeSound()}
-              placeholder="e.g. Machiavelli"
-              className={`${S_INPUT} mb-4`}
-            />
-            <SButton variant="primary" className="w-full py-3.5" disabled={busy || !name.trim()} onClick={join}>
-              {busy ? "Joining…" : "Join the party"}
-            </SButton>
-            <p className="mt-3 text-center text-[11px] text-linen-500">
-              A game already running? You&apos;ll spectate and get dealt into the next one.
-            </p>
-            {error && <p className="mt-3 text-center text-[13px] text-blood-300">{error}</p>}
-          </>
-        )}
-      </SPanel>
+      </FeltSurface>
     </main>
   );
 }
@@ -192,22 +220,29 @@ export function PartyRoom({ code }: { code: string }) {
   let body: React.ReactNode;
   if (notFound) {
     body = (
-      <main className="flex flex-1 flex-col items-center justify-center px-4">
-        <SPanel className="w-full max-w-sm p-8 text-center">
-          <div className="slabel mb-3">Party {code}</div>
-          <p className="mb-5 text-[14px] text-linen-300">
-            This party doesn&apos;t exist — or everyone has long since gone home.
-          </p>
-          <SButton className="w-full" onClick={() => router.push("/")}>
-            Return home
-          </SButton>
-        </SPanel>
+      <main className="flex flex-1 flex-col">
+        <FeltSurface>
+          <div className="flex flex-1 items-center justify-center px-4">
+            <PaperCard rotate={1.4} className="w-full max-w-[360px] px-7 py-8 text-center">
+              <div className="font-hand text-[28px] font-bold text-[#463d2e]">Table {code}?</div>
+              <p className="mt-2 font-hand text-[17px] leading-snug text-[#7a6d58]">
+                nobody here — either the code&apos;s wrong or everyone went home hours ago.
+              </p>
+              <button
+                onClick={() => router.push("/")}
+                className="mt-5 w-full rounded-[4px] border-[2px] border-[#6b4a2a] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b4a2a] transition hover:bg-[#6b4a2a]/10"
+              >
+                Back to the door
+              </button>
+            </PaperCard>
+          </div>
+        </FeltSurface>
       </main>
     );
   } else if (!ready || (!view && !preview)) {
     body = (
       <main className="flex flex-1 items-center justify-center">
-        <div className="slabel animate-pulse">Finding the party…</div>
+        <div className="slabel animate-pulse">Finding your table…</div>
       </main>
     );
   } else if (!session || !view) {
@@ -220,7 +255,11 @@ export function PartyRoom({ code }: { code: string }) {
       />
     );
   } else if (view.phase === "lobby" || !view.game) {
-    body = <PartyLobby v={view} move={move} onLeave={() => setConfirm("leave")} />;
+    body = (
+      <FeltSurface>
+        <PartyLobby v={view} move={move} onLeave={() => setConfirm("leave")} />
+      </FeltSurface>
+    );
   } else {
     const ui = GAME_UI[view.game.type];
     if (!ui) {

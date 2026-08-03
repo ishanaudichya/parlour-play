@@ -12,9 +12,11 @@
     "simulate:teenpatti": "tsx scripts/simulate-teenpatti.ts",
     "simulate:monodeal": "tsx scripts/simulate-monodeal.ts",
     "simulate:mafia": "tsx scripts/simulate-mafia.ts",
-    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts && tsx scripts/simulate-battleship.ts && tsx scripts/simulate-connect4.ts",
+    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts && tsx scripts/simulate-battleship.ts && tsx scripts/simulate-connect4.ts && tsx scripts/simulate-avalon.ts && tsx scripts/simulate-secrethitler.ts",
     "simulate:battleship": "tsx scripts/simulate-battleship.ts",
-    "simulate:connect4": "tsx scripts/simulate-connect4.ts"
+    "simulate:connect4": "tsx scripts/simulate-connect4.ts",
+    "simulate:avalon": "tsx scripts/simulate-avalon.ts",
+    "simulate:secrethitler": "tsx scripts/simulate-secrethitler.ts"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
