@@ -26,12 +26,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "PARLOUR — four games, one table",
+  title: "PARLOUR — ten games, one table",
   description:
-    "Game night without the apps. Coup, UNO, Monopoly Deal and Teen Patti, played live with friends — one party link, no accounts.",
+    "Game night without the apps. Coup, UNO, Monopoly Deal, Teen Patti, Mafia, Battleship, Four in a Row, Avalon, Secret Hitler and Chain Reaction, played live with friends — one party link, no accounts.",
   openGraph: {
     title: "PARLOUR",
-    description: "Four games, one table. Coup · UNO · Monopoly Deal · Teen Patti — live with friends, just a code.",
+    description: "Ten games, one table. Coup · UNO · Monopoly Deal · Teen Patti · Mafia · Battleship · Four in a Row · Avalon · Secret Hitler · Chain Reaction — live with friends, just a code.",
     type: "website",
   },
 };

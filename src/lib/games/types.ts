@@ -9,7 +9,8 @@ export type GameType =
   | "battleship"
   | "connect4"
   | "avalon"
-  | "secrethitler";
+  | "secrethitler"
+  | "chainreaction";
 
 export interface GamePlayer {
   id: string;

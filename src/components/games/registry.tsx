@@ -7,6 +7,8 @@ import { AvalonScreen } from "./avalon/AvalonScreen";
 import { AvalonPoster } from "./avalon/Poster";
 import { BattleshipScreen } from "./battleship/BattleshipScreen";
 import { BattleshipPoster } from "./battleship/Poster";
+import { ChainReactionScreen } from "./chainreaction/ChainReactionScreen";
+import { ChainReactionPoster } from "./chainreaction/Poster";
 import { Connect4Screen } from "./connect4/Connect4Screen";
 import { Connect4Poster } from "./connect4/Poster";
 import { CoupScreen } from "./coup/CoupScreen";
@@ -41,4 +43,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   connect4: { Screen: asScreen(Connect4Screen), Poster: Connect4Poster },
   avalon: { Screen: asScreen(AvalonScreen), Poster: AvalonPoster },
   secrethitler: { Screen: asScreen(SecretHitlerScreen), Poster: SecretHitlerPoster },
+  chainreaction: { Screen: asScreen(ChainReactionScreen), Poster: ChainReactionPoster },
 };

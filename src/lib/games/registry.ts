@@ -1,5 +1,6 @@
 import { avalonModule } from "./avalon";
 import { battleshipModule } from "./battleship";
+import { chainreactionModule } from "./chainreaction";
 import { connect4Module } from "./connect4";
 import { coupModule } from "./coup/engine";
 import { mafiaModule } from "./mafia";
@@ -21,6 +22,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   connect4: connect4Module as GameModule,
   avalon: avalonModule as GameModule,
   secrethitler: secrethitlerModule as GameModule,
+  chainreaction: chainreactionModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -37,4 +39,5 @@ export const GAME_META: Record<
   connect4: { title: "Four in a Row", tagline: "Drop, stack, connect four", min: 2, max: 2, accent: "#f5b23e" },
   avalon: { title: "Avalon", tagline: "Merlin knows. The Assassin waits.", min: 5, max: 8, accent: "#8fb8de" },
   secrethitler: { title: "Secret Hitler", tagline: "Pass policies, trust no cabinet", min: 5, max: 8, accent: "#e05a33" },
+  chainreaction: { title: "Chain Reaction", tagline: "Fill the cell, start the cascade", min: 2, max: 8, accent: "#c86bff" },
 };

@@ -1,9 +1,9 @@
-# PARLOUR — nine games, one table
+# PARLOUR — ten games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Nine games, nine design languages:**
+**Ten games, ten design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -16,6 +16,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Four in a Row** | 2 | chunky blue arcade cabinet |
 | **Avalon** | 5–8 | moonlit Camelot, illuminated manuscript |
 | **Secret Hitler** | 5–8 | 1930s ministry letterpress |
+| **Chain Reaction** | 2–8 | black glass, luminous orbs, grid glows in the mover's colour |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -78,6 +79,7 @@ npm run simulate:battleship # Battleship  (3000 games + secrecy leak checks)
 npm run simulate:connect4   # Four in a Row (5000 games + independent win-line verification)
 npm run simulate:avalon     # Avalon      (3000 games + role-knowledge privacy invariants)
 npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation & privacy invariants)
+npm run simulate:chainreaction # Chain Reaction (3000 games, 2–8 players, independent cascade re-derivation)
 npm run simulate:all
 ```
 
@@ -112,3 +114,10 @@ npm run simulate:all
   ballots, secret legislative sessions, the full presidential-power track per player count
   (peek / investigate / special election / executions), veto after five fascist policies,
   election-tracker chaos, and both Hitler endgames. Team wins tally for every member.
+- **Chain Reaction** — 2–8 players on a board that grows with the table (6×8 / 7×9 / 8×10).
+  Place on an empty cell or your own; a cell bursts at its neighbour count (corner 2, edge 3,
+  middle 4), sending one orb to each neighbour and converting them; bursts cascade in
+  simultaneous waves, orbs are conserved, and a never-settling cascade stops the moment the
+  mover owns every orb (the game is over anyway). Knocked out when you hold nothing after
+  your first turn; last one standing wins, no draws. 45 s turns auto-place; leavers' orbs
+  are swept off the board. The client replays the recorded cascade wave by wave.
