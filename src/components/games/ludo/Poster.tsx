@@ -26,9 +26,14 @@ export function LudoPoster() {
   return (
     <div
       className="relative flex h-full min-h-[190px] w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[#c9a45c]/45"
-      style={{ background: "radial-gradient(110% 80% at 50% -8%, rgba(201,164,92,0.22) 0%, transparent 62%), linear-gradient(180deg, #32161f 0%, #170a10 100%)" }}
+      style={{
+        background:
+          "radial-gradient(90% 70% at 50% 0%, rgba(255,236,200,0.16) 0%, transparent 60%), radial-gradient(60% 60% at 50% 55%, rgba(20,10,8,0.5) 0%, transparent 75%), conic-gradient(from 0deg at 50% 50%, #9a6c1c 0deg 90deg, #213e76 90deg 180deg, #7e2619 180deg 270deg, #1e5340 270deg 360deg)",
+      }}
     >
-      <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 0 54px rgba(0,0,0,0.8)" }} />
+      <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 0 54px rgba(0,0,0,0.75)" }} />
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2" style={{ background: "rgba(243,233,210,0.16)" }} />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" style={{ background: "rgba(243,233,210,0.16)" }} />
 
       <svg viewBox={`-6 -6 ${W + 12} ${H + 12}`} className="relative h-auto w-[176px]" style={{ filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.6))" }} aria-hidden>
         <defs>

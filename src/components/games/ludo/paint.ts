@@ -81,3 +81,22 @@ export function moveDuration(from: number, to: number, captured: number): number
   const travel = from < 0 ? OUT_MS : (to - from) * HOP_MS;
   return travel + (captured ? CAPTURE_GAP_MS + FLY_MS : 0);
 }
+
+/* ---------------- the room ----------------
+   The table is the board writ large: four deep panels in the four pigments,
+   green over red on the left, marigold over indigo on the right, meeting in a
+   cross behind the board. Darker than the board's own colours, so the board
+   is always the brightest thing in the room. */
+
+export const ROOM: Record<LudoColor, string> = {
+  red: "#7e2619",
+  blue: "#213e76",
+  yellow: "#9a6c1c",
+  green: "#1e5340",
+};
+
+/** Cards and panels sitting on the coloured panels. */
+export const CARD_BG = "rgba(24,11,9,0.5)";
+export const CARD_BG_ACTIVE = "rgba(24,11,9,0.72)";
+export const CARD_BORDER = "rgba(243,233,210,0.14)";
+export const TEXT_SOFT = "rgba(243,233,210,0.72)";

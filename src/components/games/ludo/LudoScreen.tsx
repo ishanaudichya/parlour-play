@@ -1,9 +1,13 @@
 "use client";
 
-/* Ludo — an heirloom board on a velvet cloth. Lacquer and brass, ivory
-   enamel, four heritage pigments, glossy domed tokens, and a real ivory die
-   that tumbles onto a suede tray. The one honest piece of physics is the
-   hop: a token moves one square at a time and you hear every step. */
+/* Ludo — an heirloom board on a table that is the board writ large: four
+   deep pigment panels meeting in a cross. Lacquer and brass, ivory enamel,
+   glossy domed tokens, and a real ivory die that tumbles onto a suede tray.
+
+   Everything the screen SAYS about the game — whose turn, what was rolled,
+   which tokens may move, who won — comes from the replay's `shown` view, so
+   it lands in step with the die and the hops rather than with the packet.
+   Only the ability to act reads the live view, gated on the replay. */
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -14,11 +18,12 @@ import { LudoBoard } from "./Board";
 import { DieTray } from "./Die";
 import { rozha } from "./font";
 import { GameOverCard, HomeDots, LudoRulesModal, TokenChip } from "./Overlays";
-import { BRASS, CREAM, moveDuration, MUTED, PAINT, ROLL_MS, SWIFT } from "./paint";
+import { BRASS, CARD_BG, CARD_BG_ACTIVE, CARD_BORDER, CREAM, PAINT, ROOM, SWIFT, TEXT_SOFT } from "./paint";
 import { useLudoPlayback } from "./playback";
 import { ludoSfx, playLudoDiff } from "./sfx";
 
 const EASE = "cubic-bezier(0.16,1,0.3,1)";
+const IVORY_LINE = "rgba(243,233,210,0.14)";
 
 /* ---------------- clock (never Date.now() during render) ---------------- */
 
@@ -69,18 +74,18 @@ function DeadlineBar({ deadline, nowEst, color, label }: { deadline: number; now
   return (
     <div className="mx-auto w-full max-w-[320px]">
       <div className="flex items-baseline justify-between text-[9px] uppercase tracking-[0.22em]">
-        <span style={{ color: MUTED }}>{label}</span>
-        <span className="text-[11px] font-bold tabular-nums" style={{ color: danger ? "#ff8a7a" : CREAM, animation: danger ? "ludo-pulse 0.9s ease-in-out infinite" : undefined }}>
+        <span style={{ color: TEXT_SOFT }}>{label}</span>
+        <span className="text-[11px] font-bold tabular-nums" style={{ color: danger ? "#ffb3a6" : CREAM, animation: danger ? "ludo-pulse 0.9s ease-in-out infinite" : undefined }}>
           {secs}s
         </span>
       </div>
-      <div className="mt-1 h-[4px] overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.1)" }}>
+      <div className="mt-1 h-[4px] overflow-hidden rounded-full" style={{ background: "rgba(0,0,0,0.35)" }}>
         <div
           className="h-full rounded-full"
           style={{
             width: `${frac * 100}%`,
-            background: danger ? "linear-gradient(90deg,#ff5a4a,#ff9d7a)" : `linear-gradient(90deg, ${color}, ${BRASS})`,
-            boxShadow: `0 0 12px ${danger ? "rgba(255,90,74,0.6)" : `${color}77`}`,
+            background: danger ? "linear-gradient(90deg,#ff7a6a,#ffc0a0)" : `linear-gradient(90deg, ${color}, ${BRASS})`,
+            boxShadow: `0 0 12px ${danger ? "rgba(255,120,100,0.6)" : `${color}88`}`,
             transition: "width 200ms linear",
           }}
         />
@@ -99,9 +104,9 @@ function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: 
     <div
       className="flex items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-[border-color,background,box-shadow] duration-300"
       style={{
-        borderColor: active ? `${paint.light}99` : "rgba(255,255,255,0.08)",
-        background: active ? `${paint.base}22` : "rgba(255,255,255,0.03)",
-        boxShadow: active ? `0 0 24px ${paint.base}33, inset 0 1px 0 rgba(255,255,255,0.06)` : "inset 0 1px 0 rgba(255,255,255,0.03)",
+        borderColor: active ? `${paint.light}aa` : CARD_BORDER,
+        background: active ? CARD_BG_ACTIVE : CARD_BG,
+        boxShadow: active ? `0 0 26px ${paint.base}66, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 20px rgba(0,0,0,0.25)",
         transitionTimingFunction: EASE,
         opacity: p.left ? 0.5 : 1,
       }}
@@ -123,7 +128,7 @@ function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: 
             {p.name}
           </span>
           {you && (
-            <span className="rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em]" style={{ background: "rgba(255,255,255,0.12)", color: MUTED }}>
+            <span className="rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em]" style={{ background: "rgba(243,233,210,0.16)", color: CREAM }}>
               you
             </span>
           )}
@@ -133,7 +138,7 @@ function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: 
             </span>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-[9.5px] uppercase tracking-[0.14em]" style={{ color: MUTED }}>
+        <div className="mt-1 flex items-center gap-2 text-[9.5px] uppercase tracking-[0.14em]" style={{ color: TEXT_SOFT }}>
           <HomeDots color={p.color} home={home} size={7} />
           {p.left ? <span>left</span> : <span className="tabular-nums">{racing} out · {p.inYard} in yard</span>}
         </div>
@@ -152,16 +157,21 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
   const nowEst = useNowEst(v.now, skew);
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, getMutedServerSnapshot);
   const pb = useLudoPlayback(v);
+  /** what the screen presents — trails the live view by exactly the replay */
+  const d = pb.shown;
 
   const me = v.players.find((p) => p.id === youId) ?? null;
-  const turnPlayer = v.turn ? v.players.find((p) => p.id === v.turn) ?? null : null;
-  const winner = v.winner ? v.players.find((p) => p.id === v.winner) ?? null : null;
-  const myTurn = !spectating && me !== null && !me.left && v.phase !== "over" && v.turn === youId;
-  const canRoll = myTurn && v.phase === "roll";
-  const canPick = myTurn && v.phase === "move";
+  const turnPlayer = d.turn ? d.players.find((p) => p.id === d.turn) ?? null : null;
+  const winner = d.winner ? d.players.find((p) => p.id === d.winner) ?? null : null;
   const tallies = party.tallies.ludo ?? {};
-  const accentColor = turnPlayer ? PAINT[turnPlayer.color] : winner ? PAINT[winner.color] : null;
-  const accent = accentColor ? accentColor.light : BRASS;
+  const accentPaint = turnPlayer ? PAINT[turnPlayer.color] : winner ? PAINT[winner.color] : null;
+  const accent = accentPaint ? accentPaint.light : BRASS;
+
+  // acting reads the LIVE view, but waits for the replay to catch up
+  const myTurnLive = !spectating && me !== null && !me.left && v.phase !== "over" && v.turn === youId;
+  const canRoll = myTurnLive && v.phase === "roll" && !pb.animating;
+  const canPick = myTurnLive && v.phase === "move" && !pb.animating;
+  const shownMyTurn = !spectating && me !== null && !me.left && d.phase !== "over" && d.turn === youId;
 
   /* --- sounds: diff the previous view's log ------------------------------ */
 
@@ -172,8 +182,8 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
   }, [v, youId]);
 
   useEffect(() => {
-    document.title = myTurn ? (canRoll ? "● Your roll — Ludo" : "● Your move — Ludo") : "Ludo";
-  }, [myTurn, canRoll]);
+    document.title = canRoll ? "● Your roll — Ludo" : canPick ? "● Your move — Ludo" : "Ludo";
+  }, [canRoll, canPick]);
 
   /* --- interaction ------------------------------------------------------- */
 
@@ -199,13 +209,11 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
 
   // keyboard: space / enter rolls, 1–4 picks a token
   useEffect(() => {
-    if (!myTurn) return;
+    if (!canRoll && !canPick) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === " " || e.key === "Enter") {
-        if (canRoll) {
-          e.preventDefault();
-          roll();
-        }
+      if ((e.key === " " || e.key === "Enter") && canRoll) {
+        e.preventDefault();
+        roll();
       } else if (/^[1-4]$/.test(e.key) && canPick) {
         e.preventDefault();
         pickToken(Number(e.key) - 1);
@@ -213,50 +221,39 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [myTurn, canRoll, canPick, roll, pickToken]);
+  }, [canRoll, canPick, roll, pickToken]);
 
   /* --- chrome ------------------------------------------------------------ */
 
-  const lastLog = v.log.length ? v.log[v.log.length - 1] : null;
+  const lastLog = d.log.length ? d.log[d.log.length - 1] : null;
 
   const banner = useMemo(() => {
-    if (v.phase === "over") {
-      return { text: winner ? `${winner.name} brings all four home` : "Game over", color: accent };
-    }
-    if (me?.left) return { text: "You left the table", color: MUTED };
+    if (d.phase === "over") return { text: winner ? `${winner.name} brings all four home` : "Game over", color: accent };
+    if (me?.left) return { text: "You left the table", color: TEXT_SOFT };
+    if (pb.rolling) return { text: `${turnPlayer?.name ?? "…"} rolls…`, color: accent };
     if (spectating || !me) {
-      return { text: turnPlayer ? (v.phase === "roll" ? `${turnPlayer.name} to roll` : `${turnPlayer.name} is choosing`) : "…", color: accent };
+      return { text: turnPlayer ? (d.phase === "roll" ? `${turnPlayer.name} to roll` : `${turnPlayer.name} is choosing`) : "…", color: accent };
     }
-    if (canRoll) return { text: v.sixes ? "A six — roll again" : "Your roll", color: accent };
-    if (canPick) return { text: `You rolled a ${v.die} — pick a token`, color: accent };
-    return { text: `Waiting for ${turnPlayer?.name ?? "…"}…`, color: MUTED };
-  }, [v.phase, v.sixes, v.die, winner, me, spectating, turnPlayer, canRoll, canPick, accent]);
+    if (shownMyTurn && d.phase === "roll") return { text: d.sixes ? "A six — roll again" : "Your roll", color: accent };
+    if (shownMyTurn && d.phase === "move") return { text: `You rolled a ${d.die} — pick a token`, color: accent };
+    return { text: `Waiting for ${turnPlayer?.name ?? "…"}…`, color: TEXT_SOFT };
+  }, [d.phase, d.sixes, d.die, winner, me, spectating, turnPlayer, shownMyTurn, pb.rolling, accent]);
 
   const dieCaption = useMemo(() => {
-    if (v.phase === "over") return winner ? `${winner.name} wins` : "Game over";
-    if (canRoll) return "Tap to roll";
     if (pb.rolling) return "…";
-    if (v.phase === "move") return `${turnPlayer?.name ?? ""} rolled a ${v.die}`;
+    if (d.phase === "over") return winner ? `${winner.name} wins` : "Game over";
+    if (canRoll) return "Tap to roll";
+    if (shownMyTurn && d.phase === "roll") return "Your roll";
+    if (d.phase === "move") return `${turnPlayer?.name ?? ""} rolled a ${d.die}`;
     return turnPlayer ? `${turnPlayer.name}'s roll` : "";
-  }, [v.phase, v.die, winner, canRoll, pb.rolling, turnPlayer]);
+  }, [pb.rolling, d.phase, d.die, winner, canRoll, shownMyTurn, turnPlayer]);
 
-  // hold the game-over card until the die and the last hop have played out
-  const overDelay = useMemo(() => {
-    if (v.phase !== "over") return 0.4;
-    let ms = 300;
-    if (v.lastRoll && v.lastMove && v.lastMove.rollN === v.lastRoll.n) ms += ROLL_MS;
-    if (v.lastMove) ms += moveDuration(v.lastMove.from, v.lastMove.to, v.lastMove.captured.length);
-    return ms / 1000;
-  }, [v.phase, v.lastRoll, v.lastMove]);
-
-  const dieTray = (
-    <DieTray value={pb.dieFace} rolling={pb.rolling} canRoll={canRoll} onRoll={roll} accent={accent} caption={dieCaption} />
-  );
+  const dieTray = <DieTray value={pb.dieFace} rolling={pb.rolling} canRoll={canRoll} onRoll={roll} accent={accent} caption={dieCaption} />;
 
   const roster = (
     <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-1 lg:gap-2">
-      {v.players.map((p) => (
-        <PlayerCard key={p.id} p={p} active={v.phase !== "over" && v.turn === p.id} you={p.id === youId} wins={tallies[p.id] ?? 0} won={v.winner === p.id} />
+      {d.players.map((p) => (
+        <PlayerCard key={p.id} p={p} active={d.phase !== "over" && d.turn === p.id} you={p.id === youId} wins={tallies[p.id] ?? 0} won={d.winner === p.id} />
       ))}
     </div>
   );
@@ -265,9 +262,23 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
     <div
       className="relative flex min-h-[100dvh] flex-col overflow-x-hidden"
       style={{
-        background: `radial-gradient(90% 55% at 50% -10%, ${accent}2e 0%, ${accent}0a 40%, transparent 65%), linear-gradient(180deg, #2c1622 0%, #1c0d15 50%, #12080d 100%)`,
+        background: [
+          // lamp over the table
+          "radial-gradient(70% 42% at 50% 0%, rgba(255,236,200,0.16) 0%, transparent 60%)",
+          // the board's own shadow pooling under it
+          "radial-gradient(52% 52% at 50% 50%, rgba(18,8,6,0.55) 0%, rgba(18,8,6,0.22) 48%, transparent 76%)",
+          // a soft sheen on each panel
+          "radial-gradient(38% 38% at 22% 24%, rgba(255,255,255,0.07) 0%, transparent 70%)",
+          "radial-gradient(38% 38% at 78% 24%, rgba(255,255,255,0.07) 0%, transparent 70%)",
+          "radial-gradient(38% 38% at 22% 78%, rgba(255,255,255,0.06) 0%, transparent 70%)",
+          "radial-gradient(38% 38% at 78% 78%, rgba(255,255,255,0.06) 0%, transparent 70%)",
+          // the ivory seams between the panels
+          `linear-gradient(90deg, transparent calc(50% - 1px), ${IVORY_LINE} calc(50% - 1px), ${IVORY_LINE} calc(50% + 1px), transparent calc(50% + 1px))`,
+          `linear-gradient(180deg, transparent calc(50% - 1px), ${IVORY_LINE} calc(50% - 1px), ${IVORY_LINE} calc(50% + 1px), transparent calc(50% + 1px))`,
+          // the four panels: marigold top-right, indigo bottom-right, vermilion bottom-left, emerald top-left
+          `conic-gradient(from 0deg at 50% 50%, ${ROOM.yellow} 0deg 90deg, ${ROOM.blue} 90deg 180deg, ${ROOM.red} 180deg 270deg, ${ROOM.green} 270deg 360deg)`,
+        ].join(", "),
         fontFamily: "var(--font-sans)",
-        transition: "background 700ms ease",
       }}
       onPointerDown={primeSound}
     >
@@ -275,27 +286,18 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
 @keyframes ludo-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.45 } }
 `}</style>
 
-      {/* velvet sheen + lamp */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 40% at 50% 0%, rgba(255,226,180,0.08) 0%, transparent 70%), repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 2px, transparent 2px, transparent 7px)",
-        }}
-      />
-
       {/* header */}
       <header className="relative z-10 flex items-center justify-between gap-3 px-3 pb-1 pt-3 sm:px-5">
         <div className="min-w-0">
-          <h1 className={`${rozha.className} truncate text-[22px] leading-none sm:text-[26px]`} style={{ color: CREAM, textShadow: `0 2px 0 rgba(0,0,0,0.5), 0 0 24px ${accent}55` }}>
+          <h1 className={`${rozha.className} truncate text-[22px] leading-none sm:text-[26px]`} style={{ color: CREAM, textShadow: "0 2px 0 rgba(0,0,0,0.45), 0 0 24px rgba(0,0,0,0.35)" }}>
             Ludo
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em]" style={{ color: MUTED }}>
-            <span className="tabular-nums">{v.rolls} rolls</span>
-            <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-            <span className="tabular-nums">{v.moves} moves</span>
-            <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-            <span>{v.players.length} colours</span>
+          <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em]" style={{ color: TEXT_SOFT }}>
+            <span className="tabular-nums">{d.rolls} rolls</span>
+            <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+            <span className="tabular-nums">{d.moves} moves</span>
+            <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+            <span>{d.players.length} colours</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -304,18 +306,23 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
             onClick={() => setMuted(!muted)}
             aria-label={muted ? "Unmute sounds" : "Mute sounds"}
             className={`rounded-lg border px-2.5 py-1.5 text-[13px] transition ${muted ? "line-through" : ""}`}
-            style={{ borderColor: "rgba(255,255,255,0.16)", color: muted ? "rgba(164,147,122,0.5)" : MUTED }}
+            style={{ borderColor: CARD_BORDER, background: CARD_BG, color: muted ? "rgba(243,233,210,0.4)" : CREAM }}
           >
             ♪
           </button>
-          <button type="button" onClick={() => setRulesOpen(true)} className="rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition" style={{ borderColor: "rgba(255,255,255,0.16)", color: MUTED }}>
+          <button
+            type="button"
+            onClick={() => setRulesOpen(true)}
+            className="rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition"
+            style={{ borderColor: CARD_BORDER, background: CARD_BG, color: CREAM }}
+          >
             Rules
           </button>
         </div>
       </header>
 
       {spectating && (
-        <div className="relative z-10 mx-auto mt-1 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em]" style={{ borderColor: `${BRASS}66`, background: "rgba(30,16,22,0.7)", color: "#e8d3a4" }}>
+        <div className="relative z-10 mx-auto mt-1 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em]" style={{ borderColor: `${BRASS}88`, background: CARD_BG_ACTIVE, color: "#eed9a4" }}>
           Spectating — pull up a chair
         </div>
       )}
@@ -323,7 +330,7 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
       {/* banner + clock */}
       <div className="relative z-10 mt-2 space-y-2 px-3 sm:px-5">
         <div className="flex min-h-[32px] items-center justify-center gap-2.5">
-          {turnPlayer && v.phase !== "over" && <TokenChip color={turnPlayer.color} size={16} />}
+          {turnPlayer && d.phase !== "over" && <TokenChip color={turnPlayer.color} size={16} />}
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={banner.text}
@@ -332,14 +339,14 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
               exit={{ y: -8, opacity: 0 }}
               transition={{ duration: 0.28, ease: SWIFT }}
               className={`${rozha.className} text-[17px] leading-none sm:text-[19px]`}
-              style={{ color: banner.color, textShadow: `0 0 20px ${banner.color}44` }}
+              style={{ color: banner.color, textShadow: "0 1px 0 rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.35)" }}
             >
               {banner.text}
             </motion.span>
           </AnimatePresence>
         </div>
-        {v.phase !== "over" && v.deadline !== null && (
-          <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={accent} label={turnPlayer ? `${turnPlayer.name} — ${v.phase === "roll" ? "to roll" : "to move"}` : "clock"} />
+        {d.phase !== "over" && v.deadline !== null && (
+          <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={accent} label={turnPlayer ? `${turnPlayer.name} — ${d.phase === "roll" ? "to roll" : "to move"}` : "clock"} />
         )}
       </div>
 
@@ -349,9 +356,9 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
           <div className="min-w-0">
             <div className="mx-auto w-full" style={{ maxWidth: "min(100%, 720px, 80vh)" }}>
               <LudoBoard
-                players={v.players}
+                players={d.players}
                 pb={pb}
-                turnSeat={v.phase !== "over" ? (turnPlayer?.seat ?? null) : null}
+                turnSeat={d.phase !== "over" ? (turnPlayer?.seat ?? null) : null}
                 interactive={canPick}
                 mySeat={me?.seat ?? null}
                 movable={v.movable}
@@ -359,7 +366,7 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
                 hoverToken={hoverToken}
                 onHoverToken={handleHover}
                 onPickToken={pickToken}
-                winnerSeat={v.phase === "over" && !pb.animating ? (winner?.seat ?? null) : null}
+                winnerSeat={d.phase === "over" ? (winner?.seat ?? null) : null}
               />
             </div>
 
@@ -374,15 +381,15 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
                     exit={{ y: -6, opacity: 0 }}
                     transition={{ duration: 0.26, ease: SWIFT }}
                     className="text-[11px] italic"
-                    style={{ color: "rgba(164,147,122,0.95)" }}
+                    style={{ color: TEXT_SOFT, textShadow: "0 1px 0 rgba(0,0,0,0.35)" }}
                   >
                     {logLine(lastLog)}
                   </motion.span>
                 )}
               </AnimatePresence>
             </div>
-            {myTurn && (
-              <p className="mt-1 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block" style={{ color: "rgba(164,147,122,0.55)" }}>
+            {(canRoll || canPick) && (
+              <p className="mt-1 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block" style={{ color: "rgba(243,233,210,0.5)" }}>
                 {canRoll ? "tap the die · space also rolls" : "tap a glowing token · keys 1–4 also work"}
               </p>
             )}
@@ -392,7 +399,11 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
           <div className="flex flex-col items-stretch gap-4">
             <div
               className="rounded-2xl border px-4 py-4"
-              style={{ borderColor: "rgba(201,164,92,0.28)", background: "linear-gradient(180deg, rgba(58,32,24,0.55) 0%, rgba(29,15,10,0.55) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 40px rgba(0,0,0,0.35)" }}
+              style={{
+                borderColor: "rgba(201,164,92,0.35)",
+                background: "linear-gradient(180deg, rgba(58,32,24,0.78) 0%, rgba(29,15,10,0.82) 100%)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 40px rgba(0,0,0,0.4)",
+              }}
             >
               {dieTray}
             </div>
@@ -402,8 +413,8 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
       </main>
 
       <AnimatePresence>
-        {v.phase === "over" && (
-          <GameOverCard key="ludo-over" v={v} party={party} youId={youId} isHost={isHost} playAgain={playAgain} exitToLobby={exitToLobby} delay={overDelay} />
+        {d.phase === "over" && (
+          <GameOverCard key="ludo-over" v={d} party={party} youId={youId} isHost={isHost} playAgain={playAgain} exitToLobby={exitToLobby} delay={0.35} />
         )}
       </AnimatePresence>
 

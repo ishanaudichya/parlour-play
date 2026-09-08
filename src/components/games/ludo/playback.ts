@@ -1,11 +1,16 @@
 "use client";
 
-/* The board's replay. The server sends settled positions plus the last roll
-   and the last move; this hook turns them back into motion — the die
-   tumbles and shows its face, the token hops square by square, victims fly
-   back to their yard — then snaps to whatever the server says now. Segments
-   queue up, so a roll-and-auto-move that arrives in one frame plays as two
-   beats, and a fast opponent never makes the board jump. */
+/* The board's replay. The server resolves a whole beat at once — roll, the
+   move it forces, the turn passing — and sends the settled result. This hook
+   turns that back into time: the die tumbles and shows its face, the token
+   hops square by square, victims fly back to their yard, and only THEN does
+   the rest of the screen learn what happened. `shown` is the view the screen
+   should present; it trails the live view by exactly the animation.
+
+   Beats queue up, so a roll-and-auto-move that arrives in one frame plays as
+   two, and a fast opponent never makes the board jump. Interaction should
+   still key off the live view, gated on `animating`, so nobody is ever locked
+   out by a replay that can't finish. */
 
 import { useEffect, useRef, useState } from "react";
 import type { LudoView } from "@/lib/games/ludo/types";
@@ -14,6 +19,8 @@ import { CAPTURE_GAP_MS, FLY_MS, HOP_MS, OUT_MS, ROLL_MS } from "./paint";
 export type TokenMode = "snap" | "hop" | "out" | "fly";
 
 export interface LudoPlayback {
+  /** the view whose outcome the screen is currently showing */
+  shown: LudoView;
   /** displayed position per token, keyed `${seat}:${token}` */
   pos: Record<string, number>;
   /** how each token got where it is — drives the motion */
@@ -42,12 +49,16 @@ function positionsOf(v: LudoView): { pos: Record<string, number>; mode: Record<s
 }
 
 const settled = (v: LudoView): LudoPlayback => ({
+  shown: v,
   ...positionsOf(v),
   dieFace: v.lastRoll?.value ?? null,
   rolling: false,
   moving: null,
   animating: false,
 });
+
+/** If a replay somehow never reports finishing, free the screen after this. */
+const SAFETY_MS = 1500;
 
 export function useLudoPlayback(view: LudoView): LudoPlayback {
   const [pb, setPb] = useState<LudoPlayback>(() => settled(view));
@@ -56,7 +67,7 @@ export function useLudoPlayback(view: LudoView): LudoPlayback {
   const dieCycle = useRef<number | null>(null);
   /** epoch ms when the queued replay finishes */
   const endAt = useRef(0);
-  const shown = useRef({ started: view.startedAt, roll: view.lastRoll?.n ?? 0, move: view.lastMove?.n ?? 0 });
+  const shownKeys = useRef({ started: view.startedAt, roll: view.lastRoll?.n ?? 0, move: view.lastMove?.n ?? 0 });
 
   useEffect(() => {
     latest.current = view;
@@ -71,24 +82,40 @@ export function useLudoPlayback(view: LudoView): LudoPlayback {
     };
     const at = (when: number, fn: () => void) =>
       timers.current.push(window.setTimeout(fn, Math.max(0, when - Date.now())));
+    const stopDie = () => {
+      if (dieCycle.current !== null) window.clearInterval(dieCycle.current);
+      dieCycle.current = null;
+    };
+    /** Land on whatever the server says now. */
+    const finishAt = (when: number) =>
+      at(when, () =>
+        setPb((cur) => ({
+          ...cur,
+          shown: latest.current,
+          ...positionsOf(latest.current),
+          moving: null,
+          animating: endAt.current > when + 5,
+        }))
+      );
 
     const v = view;
-    if (v.startedAt !== shown.current.started) {
+    if (v.startedAt !== shownKeys.current.started) {
       clearAll();
       endAt.current = 0;
-      shown.current = { started: v.startedAt, roll: v.lastRoll?.n ?? 0, move: v.lastMove?.n ?? 0 };
+      shownKeys.current = { started: v.startedAt, roll: v.lastRoll?.n ?? 0, move: v.lastMove?.n ?? 0 };
       setPb(settled(v));
       return;
     }
 
-    const newRoll = v.lastRoll && v.lastRoll.n > shown.current.roll ? v.lastRoll : null;
-    const newMove = v.lastMove && v.lastMove.n > shown.current.move ? v.lastMove : null;
-    if (newRoll) shown.current.roll = newRoll.n;
-    if (newMove) shown.current.move = newMove.n;
+    const newRoll = v.lastRoll && v.lastRoll.n > shownKeys.current.roll ? v.lastRoll : null;
+    const newMove = v.lastMove && v.lastMove.n > shownKeys.current.move ? v.lastMove : null;
+    if (newRoll) shownKeys.current.roll = newRoll.n;
+    if (newMove) shownKeys.current.move = newMove.n;
 
     if (!newRoll && !newMove) {
-      // nothing moved (a clock re-armed, a leaver was swept…): sync when idle
-      if (Date.now() >= endAt.current) setPb((cur) => ({ ...cur, ...positionsOf(v), moving: null, animating: false }));
+      // nothing to replay (a clock re-armed, a leaver was swept, a heartbeat):
+      // present it now if idle; a running replay lands on it when it finishes
+      if (Date.now() >= endAt.current) setPb((cur) => ({ ...cur, shown: v, ...positionsOf(v), moving: null, animating: false }));
       return;
     }
 
@@ -97,7 +124,7 @@ export function useLudoPlayback(view: LudoView): LudoPlayback {
     if (newRoll) {
       at(t, () => {
         setPb((cur) => ({ ...cur, rolling: true, animating: true }));
-        if (dieCycle.current !== null) window.clearInterval(dieCycle.current);
+        stopDie();
         dieCycle.current = window.setInterval(() => {
           setPb((cur) => {
             let f = 1 + Math.floor(Math.random() * 6);
@@ -107,8 +134,7 @@ export function useLudoPlayback(view: LudoView): LudoPlayback {
         }, 70);
       });
       at(t + ROLL_MS, () => {
-        if (dieCycle.current !== null) window.clearInterval(dieCycle.current);
-        dieCycle.current = null;
+        stopDie();
         setPb((cur) => ({ ...cur, rolling: false, dieFace: newRoll.value }));
       });
       t += ROLL_MS;
@@ -153,21 +179,15 @@ export function useLudoPlayback(view: LudoView): LudoPlayback {
         );
         t += CAPTURE_GAP_MS + FLY_MS;
       }
-      const finish = t;
-      at(finish, () =>
-        setPb((cur) => ({
-          ...cur,
-          ...positionsOf(latest.current),
-          moving: null,
-          animating: endAt.current > finish + 5,
-        }))
-      );
-    } else {
-      const finish = t;
-      at(finish, () => setPb((cur) => ({ ...cur, animating: endAt.current > finish + 5 })));
     }
+
+    finishAt(t);
     endAt.current = t;
-    // deliberately no cleanup: queued segments must outlive this render
+    // belt and braces: never leave the screen frozen on a stuck replay
+    at(t + SAFETY_MS, () =>
+      setPb((cur) => (cur.animating && endAt.current <= t ? { ...cur, shown: latest.current, ...positionsOf(latest.current), rolling: false, moving: null, animating: false } : cur))
+    );
+    // deliberately no cleanup: queued beats must outlive this render
   }, [view]);
 
   useEffect(
