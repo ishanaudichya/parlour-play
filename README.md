@@ -1,9 +1,9 @@
-# PARLOUR — ten games, one table
+# PARLOUR — eleven games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Ten games, ten design languages:**
+**Eleven games, eleven design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -17,6 +17,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Avalon** | 5–8 | moonlit Camelot, illuminated manuscript |
 | **Secret Hitler** | 5–8 | 1930s ministry letterpress |
 | **Chain Reaction** | 2–8 | black glass, luminous orbs, grid glows in the mover's colour |
+| **Ludo** | 2–4 | heirloom lacquered board, brass bevel, ivory enamel, glossy tokens |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -80,6 +81,7 @@ npm run simulate:connect4   # Four in a Row (5000 games + independent win-line v
 npm run simulate:avalon     # Avalon      (3000 games + role-knowledge privacy invariants)
 npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation & privacy invariants)
 npm run simulate:chainreaction # Chain Reaction (3000 games, 2–8 players, independent cascade re-derivation)
+npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry and rule unit cases)
 npm run simulate:all
 ```
 
@@ -121,3 +123,11 @@ npm run simulate:all
   mover owns every orb (the game is over anyway). Knocked out when you hold nothing after
   your first turn; last one standing wins, no draws. 45 s turns auto-place; leavers' orbs
   are swept off the board. The client replays the recorded cascade wave by wave.
+- **Ludo** — 2–4 players (two sit opposite), four tokens each, classic 52-square loop with the
+  eight safe squares (starts + stars). A six brings a token out and earns another roll; three
+  sixes forfeit the turn; captures send every token on the square home (a stack is no shelter)
+  and earn another roll; exact count into home, home earns another roll; first to four wins,
+  no draws. Tokens sharing a square are interchangeable, so a roll with only one real choice
+  moves by itself. 30 s per roll/choice with a sensible auto-play; leavers' tokens are swept.
+  The client replays every roll (die tumble) and move (square-by-square hop, captures flying
+  home) from the recorded `lastRoll` / `lastMove`.

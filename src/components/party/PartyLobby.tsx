@@ -25,6 +25,7 @@ const GAME_ORDER: GameType[] = [
   "avalon",
   "secrethitler",
   "chainreaction",
+  "ludo",
 ];
 
 const EASE = [0.16, 1, 0.3, 1] as const;

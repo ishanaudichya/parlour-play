@@ -10,7 +10,8 @@ export type GameType =
   | "connect4"
   | "avalon"
   | "secrethitler"
-  | "chainreaction";
+  | "chainreaction"
+  | "ludo";
 
 export interface GamePlayer {
   id: string;

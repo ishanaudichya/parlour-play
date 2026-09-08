@@ -1,7 +1,7 @@
 "use client";
 
 /* The landing page IS a game table, seen from above: walnut rim, oxblood felt
-   under a lamp, the ten games scattered across it as physical artifacts,
+   under a lamp, the eleven games scattered across it as physical artifacts,
    and a paper score pad in the middle where you sign in for the night. */
 
 import { motion } from "framer-motion";
@@ -144,6 +144,46 @@ function Artifact({ k }: { k: GameType }) {
           </svg>
         </div>
       );
+    case "ludo":
+      return (
+        <div className="relative aspect-5/7 w-full overflow-hidden border-[3px] border-[#2b1510] bg-[#f3e9d2]">
+          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
+            <rect x="1" y="1" width="48" height="68" fill="none" stroke="#c9a45c" strokeWidth="0.8" />
+            {/* a mini cross board */}
+            <rect x="7" y="13" width="14" height="14" rx="1.5" fill="#c8402e" />
+            <rect x="29" y="13" width="14" height="14" rx="1.5" fill="#2e7d5b" />
+            <rect x="7" y="35" width="14" height="14" rx="1.5" fill="#2f5da8" />
+            <rect x="29" y="35" width="14" height="14" rx="1.5" fill="#dfa62a" />
+            {[[10, 16], [16, 16], [10, 22], [16, 22]].map(([x, y]) => (
+              <circle key={`r${x}${y}`} cx={x + 1} cy={y + 1} r="1.9" fill="#f3e9d2" fillOpacity="0.9" />
+            ))}
+            <rect x="21" y="13" width="8" height="36" fill="#f3e9d2" stroke="#4a3220" strokeOpacity="0.35" strokeWidth="0.4" />
+            <rect x="7" y="27" width="36" height="8" fill="#f3e9d2" stroke="#4a3220" strokeOpacity="0.35" strokeWidth="0.4" />
+            <rect x="21" y="27" width="8" height="8" fill="#4a3220" fillOpacity="0.08" />
+            <path d="M21,27 L29,27 L25,31 Z" fill="#2e7d5b" />
+            <path d="M21,27 L21,35 L25,31 Z" fill="#c8402e" />
+            <path d="M29,27 L29,35 L25,31 Z" fill="#dfa62a" />
+            <path d="M21,35 L29,35 L25,31 Z" fill="#2f5da8" />
+            <circle cx="25" cy="31" r="1.3" fill="#c9a45c" />
+            <circle cx="24" cy="18" r="2.2" fill="#c8402e" stroke="#7a1f14" strokeWidth="0.4" />
+            <circle cx="23.4" cy="17.4" r="0.6" fill="#fff" fillOpacity="0.7" />
+            <circle cx="38" cy="31" r="2.2" fill="#dfa62a" stroke="#8a6210" strokeWidth="0.4" />
+            {/* die */}
+            <g transform="rotate(-12 38 58)">
+              <rect x="33" y="53" width="10" height="10" rx="2" fill="#fffaf0" stroke="#bba77e" strokeWidth="0.5" />
+              {[[35.5, 55.5], [40.5, 55.5], [35.5, 60.5], [40.5, 60.5], [38, 58]].map(([x, y]) => (
+                <circle key={`${x}${y}`} cx={x} cy={y} r="0.85" fill="#231a12" />
+              ))}
+            </g>
+            <text x="18" y="61" textAnchor="middle" fontSize="7.5" fontWeight="700" fontFamily="Georgia, serif" fill="#2b1510">
+              Ludo
+            </text>
+            <text x="25" y="67" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a7a5c">
+              ROLL · RACE · HOME
+            </text>
+          </svg>
+        </div>
+      );
     default:
       return null;
   }
@@ -161,6 +201,7 @@ const SCATTER: { key: GameType; x: string; y: string; rot: number; w: number; z?
   { key: "connect4", x: "86%", y: "38%", rot: 7, w: 92 },
   { key: "mafia", x: "75%", y: "68%", rot: 9, w: 92 },
   { key: "chainreaction", x: "87%", y: "58%", rot: -6, w: 90, z: 1 },
+  { key: "ludo", x: "23.5%", y: "3%", rot: 5, w: 86 },
 ];
 
 const TOSS = { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const };
@@ -272,7 +313,7 @@ function ScorePad({
         </span>
 
         <div className="font-hand text-[34px] font-bold leading-none text-[#463d2e]">Game night?</div>
-        <div className="mt-1 font-hand text-[17px] text-[#7a6d58]">pull up a chair — ten games on the table</div>
+        <div className="mt-1 font-hand text-[17px] text-[#7a6d58]">pull up a chair — eleven games on the table</div>
 
         <label className="mt-6 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a7d68]" htmlFor="pad-name">
           Your name
@@ -423,7 +464,7 @@ export function Landing() {
             <span className="font-shell neon-text text-[42px] leading-none sm:text-[54px]" translate="no">
               Parlour
             </span>
-            <span className="slabel mt-2">ten games · one table · tonight</span>
+            <span className="slabel mt-2">eleven games · one table · tonight</span>
           </motion.div>
 
           {/* desktop: artifacts scattered on the felt */}

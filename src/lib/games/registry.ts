@@ -3,6 +3,7 @@ import { battleshipModule } from "./battleship";
 import { chainreactionModule } from "./chainreaction";
 import { connect4Module } from "./connect4";
 import { coupModule } from "./coup/engine";
+import { ludoModule } from "./ludo";
 import { mafiaModule } from "./mafia";
 import { monodealModule } from "./monodeal";
 import { secrethitlerModule } from "./secrethitler";
@@ -23,6 +24,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   avalon: avalonModule as GameModule,
   secrethitler: secrethitlerModule as GameModule,
   chainreaction: chainreactionModule as GameModule,
+  ludo: ludoModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -40,4 +42,5 @@ export const GAME_META: Record<
   avalon: { title: "Avalon", tagline: "Merlin knows. The Assassin waits.", min: 5, max: 8, accent: "#8fb8de" },
   secrethitler: { title: "Secret Hitler", tagline: "Pass policies, trust no cabinet", min: 5, max: 8, accent: "#e05a33" },
   chainreaction: { title: "Chain Reaction", tagline: "Fill the cell, start the cascade", min: 2, max: 8, accent: "#c86bff" },
+  ludo: { title: "Ludo", tagline: "Roll, race, send them home", min: 2, max: 4, accent: "#c8402e" },
 };
