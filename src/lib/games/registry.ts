@@ -7,6 +7,7 @@ import { ludoModule } from "./ludo";
 import { mafiaModule } from "./mafia";
 import { monodealModule } from "./monodeal";
 import { secrethitlerModule } from "./secrethitler";
+import { tanksModule } from "./tanks";
 import { teenpattiModule } from "./teenpatti";
 import { unoModule } from "./uno";
 import type { GameModule, GameType } from "./types";
@@ -25,6 +26,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   secrethitler: secrethitlerModule as GameModule,
   chainreaction: chainreactionModule as GameModule,
   ludo: ludoModule as GameModule,
+  tanks: tanksModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -43,4 +45,5 @@ export const GAME_META: Record<
   secrethitler: { title: "Secret Hitler", tagline: "Pass policies, trust no cabinet", min: 5, max: 8, accent: "#e05a33" },
   chainreaction: { title: "Chain Reaction", tagline: "Fill the cell, start the cascade", min: 2, max: 8, accent: "#c86bff" },
   ludo: { title: "Ludo", tagline: "Roll, race, send them home", min: 2, max: 4, accent: "#c8402e" },
+  tanks: { title: "Pocket Tanks", tagline: "Draft an arsenal, level the ridge", min: 2, max: 4, accent: "#ff8a3d" },
 };

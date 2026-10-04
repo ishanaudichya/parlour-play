@@ -11,7 +11,8 @@ export type GameType =
   | "avalon"
   | "secrethitler"
   | "chainreaction"
-  | "ludo";
+  | "ludo"
+  | "tanks";
 
 export interface GamePlayer {
   id: string;

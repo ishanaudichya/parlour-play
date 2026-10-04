@@ -1,9 +1,9 @@
-# PARLOUR — eleven games, one table
+# PARLOUR — twelve games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Eleven games, eleven design languages:**
+**Twelve games, twelve design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -18,6 +18,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Secret Hitler** | 5–8 | 1930s ministry letterpress |
 | **Chain Reaction** | 2–8 | black glass, luminous orbs, grid glows in the mover's colour |
 | **Ludo** | 2–4 | heirloom lacquered board, brass bevel, ivory enamel, glossy tokens |
+| **Pocket Tanks** | 2–4 | army-surplus fire-control console, stencil type, amber readouts, a canvas battlefield |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -82,6 +83,7 @@ npm run simulate:avalon     # Avalon      (3000 games + role-knowledge privacy i
 npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation & privacy invariants)
 npm run simulate:chainreaction # Chain Reaction (3000 games, 2–8 players, independent cascade re-derivation)
 npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry and rule unit cases)
+npm run simulate:tanks      # Pocket Tanks (34 weapons × 220 random shots with independent replay check, 360 games, rule cases)
 npm run simulate:all
 ```
 
@@ -131,3 +133,14 @@ npm run simulate:all
   moves by itself. 30 s per roll/choice with a sensible auto-play; leavers' tokens are swept.
   The client replays every roll (die tumble) and move (square-by-square hop, captures flying
   home) from the recorded `lastRoll` / `lastMove`.
+- **Pocket Tanks** — 2–4 players on a destructible heightmap ridge (dirt settles into craters,
+  tanks fall with it and long falls hurt). A snake draft fills each arsenal from a shared pool
+  of 34 weapons (10/7/6 each by table size): shells, splitters, rollers, burrowers, beams, a
+  ricocheting laser, napalm that flows downhill, acid rain, lightning that seeks steel, air
+  raids, meteor calls, an orbital strike, a singularity that drags tanks in, earthquakes,
+  volcanoes, a buzzsaw, a tornado, fireworks, dirt and walls, a teleporter. Each weapon fires
+  once; every point of damage dealt scores (self-damage costs), highest score after the last
+  shot wins, level scores draw. Four drives per tank, per-turn wind, four biomes (the moon has
+  low gravity and no wind). The server resolves each shot at 60 ticks/s into a `ShotRecord`
+  (sampled tracks + a timeline of terrain ops, explosions, damage, tank moves); the canvas
+  client replays it frame by frame with procedural sprites, particles and synthesized sound.

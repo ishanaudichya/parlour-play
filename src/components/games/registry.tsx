@@ -21,6 +21,8 @@ import { MonoDealScreen } from "./monodeal/MonoDealScreen";
 import { MonoDealPoster } from "./monodeal/Poster";
 import { SecretHitlerScreen } from "./secrethitler/SecretHitlerScreen";
 import { SecretHitlerPoster } from "./secrethitler/Poster";
+import { TanksPoster } from "./tanks/Poster";
+import { TanksScreen } from "./tanks/TanksScreen";
 import { TeenPattiPoster } from "./teenpatti/Poster";
 import { TeenPattiScreen } from "./teenpatti/TeenPattiScreen";
 import { UnoPoster } from "./uno/Poster";
@@ -47,4 +49,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   secrethitler: { Screen: asScreen(SecretHitlerScreen), Poster: SecretHitlerPoster },
   chainreaction: { Screen: asScreen(ChainReactionScreen), Poster: ChainReactionPoster },
   ludo: { Screen: asScreen(LudoScreen), Poster: LudoPoster },
+  tanks: { Screen: asScreen(TanksScreen), Poster: TanksPoster },
 };
