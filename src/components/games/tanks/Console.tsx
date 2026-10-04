@@ -3,8 +3,9 @@
 /* The fire-control strip under the field. One calm row on desktop, a tidy
    stack on phones: the loaded weapon, elevation and power as sliders with
    fine-step buttons, the drive buttons, and the trigger. Keys mirror it:
-   ←/→ angle, ↑/↓ power, Q/E weapon, A/D drive, Space fire. When it isn't
-   your shot it mirrors the shooter's settings, read-only. */
+   ←/→ angle, ↑/↓ power, Q/E weapon, A/D drive, Space fire. Angles run the
+   full circle. It only ever shows YOUR settings — between turns it sits
+   greyed out with what you last dialled in. */
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
@@ -58,6 +59,7 @@ function Slider({
   display,
   color,
   disabled,
+  wrap = false,
   onChange,
 }: {
   label: string;
@@ -67,14 +69,18 @@ function Slider({
   display: string;
   color: string;
   disabled: boolean;
+  /** the steppers run round past the ends (angles) */
+  wrap?: boolean;
   onChange: (v: number) => void;
 }) {
+  const span = max - min + 1;
+  const stepBy = (d: number) => onChange(wrap ? ((((value - min + d) % span) + span) % span) + min : Math.max(min, Math.min(max, value + d)));
   const f = ((value - min) / (max - min)) * 100;
   return (
     <div className="min-w-0">
       <Caption right={<span className="text-[13px] font-semibold normal-case tabular-nums tracking-normal" style={{ color: TEXT }}>{display}</span>}>{label}</Caption>
       <div className="mt-1 flex h-[38px] items-center gap-1.5">
-        <Step label={`${label} down`} disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - 1))}>
+        <Step label={`${label} down`} disabled={disabled || (!wrap && value <= min)} onClick={() => stepBy(-1)}>
           −
         </Step>
         <input
@@ -89,7 +95,7 @@ function Slider({
           onChange={(e) => onChange(Number(e.target.value))}
           style={{ ["--c" as string]: color, ["--f" as string]: `${f}%` }}
         />
-        <Step label={`${label} up`} disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + 1))}>
+        <Step label={`${label} up`} disabled={disabled || (!wrap && value >= max)} onClick={() => stepBy(1)}>
           +
         </Step>
       </div>
@@ -195,8 +201,6 @@ export function Console({
   onFire: () => void;
 }) {
   const color = TANK[player.color].base;
-  const elev = angle <= 90 ? angle : 180 - angle;
-  const side = angle < 90 ? "→" : angle > 90 ? "←" : "↑";
   return (
     <div className="rounded-2xl p-3 sm:p-4" style={{ background: SURFACE, border: `1px solid ${LINE}` }}>
       <style>{RANGE_CSS}</style>
@@ -204,17 +208,7 @@ export function Console({
         <div className="col-span-2 lg:col-span-1">
           <WeaponPicker player={player} loaded={loaded} interactive={interactive} onLoad={onLoad} />
         </div>
-        {/* the slider runs 180 → 0 so dragging right swings the barrel right */}
-        <Slider
-          label="Angle"
-          value={180 - angle}
-          min={0}
-          max={180}
-          display={`${elev}° ${side}`}
-          color={color}
-          disabled={!interactive}
-          onChange={(v) => onAngle(180 - v)}
-        />
+        <Slider label="Angle" value={angle} min={0} max={359} display={`${angle}°`} color={color} disabled={!interactive} wrap onChange={onAngle} />
         <Slider label="Power" value={power} min={0} max={100} display={`${power}`} color={color} disabled={!interactive} onChange={onPower} />
 
         <div>

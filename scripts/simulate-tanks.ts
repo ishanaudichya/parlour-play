@@ -82,7 +82,7 @@ function fuzzWeapon(w: WeaponId, shots: number, seed: number) {
       seats: n,
       shooter,
       weapon: w,
-      angle: Math.floor(rng() * 181),
+      angle: Math.floor(rng() * 360),
       power: Math.floor(rng() * 101),
       wind: Math.round((rng() * 2 - 1) * 20),
       gravity: biome === "lunar" ? 0.6 : 1,
@@ -164,7 +164,7 @@ function invariants(s: TanksState, where: string) {
   for (const p of s.players) {
     if (p.score < 0) fail(`${where}: ${p.name} score ${p.score}`);
     if (p.moves < 0 || p.moves > MOVES) fail(`${where}: moves ${p.moves}`);
-    if (p.angle < 0 || p.angle > 180 || p.power < 0 || p.power > 100) fail(`${where}: aim out of range`);
+    if (p.angle < 0 || p.angle >= 360 || !Number.isInteger(p.angle) || p.power < 0 || p.power > 100) fail(`${where}: aim out of range`);
     if (!p.left) {
       if (Math.abs(tankGround(s.ground, p.x) - p.y) > 1e-9) fail(`${where}: ${p.name}'s tank is not on the ground`);
       if (p.loaded && !p.arsenal.includes(p.loaded)) fail(`${where}: ${p.name} has ${p.loaded} loaded but not in the arsenal`);
@@ -229,8 +229,8 @@ function playGame(n: number, seed: number): TanksState {
     } else {
       const r = rng();
       if (r < 0.15 && p.moves > 0) mv = { type: "drive", dir: rng() < 0.5 ? -1 : 1 };
-      else if (r < 0.3) mv = { type: "aim", angle: Math.floor(rng() * 181), power: Math.floor(rng() * 101), weapon: pick(rng, p.arsenal) };
-      else mv = { type: "fire", angle: Math.floor(rng() * 181), power: 20 + Math.floor(rng() * 81), weapon: pick(rng, p.arsenal) };
+      else if (r < 0.3) mv = { type: "aim", angle: Math.floor(rng() * 900) - 450, power: Math.floor(rng() * 101), weapon: pick(rng, p.arsenal) };
+      else mv = { type: "fire", angle: Math.floor(rng() * 360), power: 20 + Math.floor(rng() * 81), weapon: pick(rng, p.arsenal) };
     }
     try {
       applyTanksMove(s, p.id, mv, now, rng);
@@ -239,10 +239,15 @@ function playGame(n: number, seed: number): TanksState {
       if (mv.type !== "drive") fail(`legal ${mv.type} rejected: ${(e as Error).message}`);
     }
     invariants(s, `step ${step} (${mv.type})`);
-    // views are complete and identical for everyone apart from youId
+    // nobody sees anyone else's power or loaded weapon; your own come through
     const a = redactTanks(s, "p0", now);
     const b = redactTanks(s, "spectator", now);
-    if (JSON.stringify({ ...a, youId: "" }) !== JSON.stringify({ ...b, youId: "" })) fail("views differ between viewers");
+    for (const q of b.players) if (q.power !== 0 || q.loaded !== null) fail("spectator sees a dialled-in shot");
+    for (const q of a.players) {
+      const real = s.players.find((x) => x.id === q.id)!;
+      if (q.id === "p0" ? q.power !== real.power || q.loaded !== real.loaded : q.power !== 0 || q.loaded !== null) fail("p0's view leaks or loses aim");
+      if (q.angle !== real.angle) fail("barrel angle should be public");
+    }
   }
   if (s.phase !== "over") fail(`game ${seed} (${n}p) never ended`);
   const live = s.players.filter((p) => !p.left);
@@ -276,6 +281,11 @@ function cases() {
     if (res.delta[0] <= 0 || res.taken[1] <= 0) fail(`case: lob onto the neighbour scored ${res.delta[0]}`);
     const self = simulateShot({ ground: g, tanks, seats: 2, shooter: 0, weapon: "shell", angle: 90, power: 30, wind: 0, gravity: 1, rng });
     if (self.taken[0] <= 0 || self.delta[0] !== -self.taken[0]) fail(`case: straight up should come down on yourself (${self.taken[0]}, ${self.delta[0]})`);
+  }
+  // straight down from a ledge hits the ground under you
+  {
+    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 300, y: 200 }, { seat: 1, x: 900, y: 200 }], seats: 2, shooter: 0, weapon: "shell", angle: 270, power: 40, wind: 0, gravity: 1, rng });
+    if (res.taken[0] <= 0) fail("case: firing straight down should hurt the shooter");
   }
   // utility weapons never score
   for (const w of ["mudpie", "rampart", "blink"] as WeaponId[]) {

@@ -25,6 +25,7 @@ import { GameOverCard, TanksRulesModal } from "./Overlays";
 import { AMBER, BIOME, DANGER, LINE, PAGE, SURFACE, SWIFT, TANK, TEXT, TEXT_2, TEXT_3 } from "./palette";
 import { Scene } from "./scene";
 import { sfxDraw, sfxWin, tanksSfx } from "./sfx";
+import { getTheme, getThemeServer, setTheme, subscribeTheme, THEMES } from "./theme";
 
 /* ---------------- clock ---------------- */
 
@@ -119,6 +120,8 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
   const [announce, setAnnounce] = useState<{ weapon: string; seat: number; k: number } | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, getMutedServerSnapshot);
+  const theme = useSyncExternalStore(subscribeTheme, getTheme, getThemeServer);
+  const [themeOpen, setThemeOpen] = useState(false);
   const nowEst = useNowEst(v.now, skew);
 
   const fontFamily = stencil.style.fontFamily;
@@ -134,6 +137,10 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
         onFire: (seat, weapon) => setAnnounce((a) => ({ weapon, seat, k: (a?.k ?? 0) + 1 })),
       })
   );
+
+  useEffect(() => {
+    scene.setTheme(theme);
+  }, [scene, theme]);
 
   useEffect(() => {
     scene.ingest(v);
@@ -204,10 +211,10 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
     setLoaded(w);
     pushAim(aim.angle, aim.power, w);
   };
-  const fieldAim = (a: number, p: number, done: boolean) => {
+  const fieldAim = (a: number, done: boolean) => {
     if (!canFire) return;
-    setAim({ angle: a, power: p });
-    if (done) pushAim(a, p, effectiveLoaded);
+    setAim({ angle: a, power: aim.power });
+    if (done) pushAim(a, aim.power, effectiveLoaded);
   };
   const fire = useCallback(() => {
     if (!canFire || !effectiveLoaded) return;
@@ -240,10 +247,10 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
     const i = effectiveLoaded ? arsenal.indexOf(effectiveLoaded) : 0;
     switch (e.key) {
       case "ArrowLeft":
-        setAngle(Math.min(180, aim.angle + step));
+        setAngle((aim.angle + step) % 360);
         break;
       case "ArrowRight":
-        setAngle(Math.max(0, aim.angle - step));
+        setAngle((aim.angle - step + 360) % 360);
         break;
       case "ArrowUp":
         setPower(Math.min(100, aim.power + step));
@@ -331,11 +338,12 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
   const frac = Math.min(1, left / limit);
   const secs = Math.ceil(left / 1000);
 
-  // what the console shows: my live aim on my shot, else the shooter's
-  const consolePlayer = (canFire ? me : turnPlayer ? v.players.find((p) => p.id === turnPlayer.id) : me) ?? v.players[0];
-  const consoleAngle = canFire ? aim.angle : consolePlayer.angle;
-  const consolePower = canFire ? aim.power : consolePlayer.power;
-  const consoleLoaded = canFire ? effectiveLoaded : consolePlayer.loaded;
+  // the console is mine alone: spectators get none, and other players'
+  // settings never show here (the server doesn't even send them)
+  const consolePlayer = me && !me.left && !spectating ? me : null;
+  const consoleAngle = aim.angle;
+  const consolePower = aim.power;
+  const consoleLoaded = effectiveLoaded;
   const biome = BIOME[d.biome];
   const announced = announce ? WEAPONS[announce.weapon as WeaponId] : null;
 
@@ -351,6 +359,38 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
+        {d.phase !== "draft" && (
+          <div className="relative">
+            <button type="button" onClick={() => setThemeOpen((o) => !o)} aria-label="Battlefield theme" className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition-colors hover:bg-white/[0.06]" style={{ color: TEXT_2, border: `1px solid ${LINE}` }}>
+              <span className="h-3 w-3 rounded-full" style={{ background: `linear-gradient(135deg, ${THEMES.find((t) => t.id === theme)!.swatch[0]} 50%, ${THEMES.find((t) => t.id === theme)!.swatch[1]} 50%)` }} />
+              <span className="hidden sm:inline">{THEMES.find((t) => t.id === theme)!.label}</span>
+            </button>
+            <AnimatePresence>
+              {themeOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setThemeOpen(false)} />
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="absolute right-0 top-full z-40 mt-1.5 w-40 rounded-xl p-1" style={{ background: SURFACE, border: `1px solid ${LINE}`, boxShadow: "0 14px 34px rgba(0,0,0,0.5)" }}>
+                    {THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setTheme(t.id);
+                          setThemeOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition-colors hover:bg-white/[0.06]"
+                        style={{ color: TEXT, background: t.id === theme ? "rgba(255,255,255,0.07)" : undefined }}
+                      >
+                        <span className="h-3.5 w-3.5 rounded-full" style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 50%, ${t.swatch[1]} 50%)` }} />
+                        {t.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? "Unmute sounds" : "Mute sounds"} className="h-8 rounded-lg px-2.5 text-[13px] transition-colors hover:bg-white/[0.06]" style={{ color: muted ? TEXT_3 : TEXT_2, border: `1px solid ${LINE}` }}>
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z" fill="currentColor" stroke="none" />
@@ -385,7 +425,7 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
 
             {/* the field */}
             <div className="relative mt-2 overflow-hidden rounded-xl" style={{ border: `1px solid ${LINE}` }}>
-              <Battlefield scene={scene} font={fontFamily} canAim={canFire} mySeat={me && !me.left ? me.seat : null} angle={aim.angle} power={aim.power} straight={effectiveLoaded === "lance" || effectiveLoaded === "prism"} onAim={fieldAim}>
+              <Battlefield scene={scene} font={fontFamily} canAim={canFire} mySeat={me && !me.left ? me.seat : null} angle={aim.angle} onAim={fieldAim}>
                 <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 sm:p-3">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.div key={banner} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="rounded-full px-3 py-1 text-[12px] font-semibold sm:text-[13px]" style={{ background: "rgba(10,11,13,0.55)", color: accent, backdropFilter: "blur(4px)" }}>
@@ -435,7 +475,7 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
                 <Console player={consolePlayer} interactive={canFire} angle={consoleAngle} power={consolePower} loaded={consoleLoaded} onAngle={setAngle} onPower={setPower} onLoad={load} onDrive={drive} onFire={fire} />
                 {canFire && (
                   <p className="mt-2 hidden text-center text-[11px] lg:block" style={{ color: TEXT_3 }}>
-                    Drag on the field to aim · arrow keys fine-tune · Q/E weapon · A/D drive · Space fires
+                    Drag on the field to point the barrel · arrow keys fine-tune · Q/E weapon · A/D drive · Space fires
                   </p>
                 )}
               </div>

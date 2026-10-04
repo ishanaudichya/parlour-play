@@ -10,6 +10,9 @@ export const TANK: Record<TankColor, { base: string; light: string; deep: string
   gold: { base: "#f0aa2c", light: "#ffdc8a", deep: "#7c4f08", label: "Brass" },
 };
 
+/** A battlefield look: the map's own scenery, or a calmer theme the viewer picked. */
+export type Look = Biome | "classic" | "love" | "slate";
+
 export interface BiomePaint {
   label: string;
   /** sky, top → horizon */
@@ -26,12 +29,53 @@ export interface BiomePaint {
   /** colour of flying dirt */
   debris: string[];
   /** what drifts through the air */
-  ambient: "dust" | "snow" | "ember" | "none";
+  ambient: "dust" | "snow" | "ember" | "hearts" | "none";
+  /** a quiet look: no pebbles, few flecks, no far-off set dressing */
+  calm?: boolean;
   /** room glow behind the battlefield frame */
   room: string;
 }
 
-export const BIOME: Record<Biome, BiomePaint> = {
+export const BIOME: Record<Look, BiomePaint> = {
+  classic: {
+    label: "Classic",
+    sky: ["#040208", "#0d0719", "#1a0d30", "#281447", "#341b5a"],
+    hills: ["#160c29", "#1d1035"],
+    strata: ["#46b33e", "#3ea437", "#369431", "#2f852b", "#287525", "#21661f", "#1b571a"],
+    lip: "#9df585",
+    lipDark: "#1c5418",
+    fleck: "#c4ffa8",
+    debris: ["#46b33e", "#2f852b", "#6a4a2c", "#9df585"],
+    ambient: "none",
+    room: "#1d1035",
+    calm: true,
+  },
+  love: {
+    label: "Love",
+    sky: ["#ffc6d9", "#ffb5cc", "#ffa6c0", "#ff97b5", "#ff8aab"],
+    hills: ["#f69bbb", "#ee85a9"],
+    strata: ["#e2557f", "#d64b74", "#c84269", "#b93a5f", "#a83255", "#952a4b", "#802340"],
+    lip: "#ffe6ee",
+    lipDark: "#8a2244",
+    fleck: "#ffd6e2",
+    debris: ["#e2557f", "#ff9fbb", "#b93a5f", "#ffe6ee"],
+    ambient: "hearts",
+    room: "#5a1a33",
+    calm: true,
+  },
+  slate: {
+    label: "Slate",
+    sky: ["#0b0e13", "#10151c", "#151c25", "#1a232e", "#202b38"],
+    hills: ["#151c25", "#19212b"],
+    strata: ["#5d6874", "#545e69", "#4a545e", "#414a53", "#384048", "#2f363d", "#262c32"],
+    lip: "#cfd8e1",
+    lipDark: "#262c33",
+    fleck: "#ffffff",
+    debris: ["#8a96a2", "#5d6874", "#414a53", "#cfd8e1"],
+    ambient: "none",
+    room: "#151c25",
+    calm: true,
+  },
   mesa: {
     label: "Red Mesa",
     sky: ["#170d31", "#3d1a52", "#932f5c", "#e5664b", "#ffbd73"],

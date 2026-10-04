@@ -2,8 +2,8 @@
 
 /* The canvas host. Owns the animation loop and the sizing; the Scene owns
    everything drawn. When it is your shot you can aim right on the field:
-   press anywhere and drag — direction from your turret sets the angle,
-   distance sets the power. */
+   press anywhere and drag — the barrel swings to point at your finger, all
+   the way round. Power stays on the console. */
 
 import { useEffect, useRef } from "react";
 import { H, W } from "@/lib/games/tanks/terrain";
@@ -15,8 +15,6 @@ export function Battlefield({
   canAim,
   mySeat,
   angle,
-  power,
-  straight,
   onAim,
   children,
 }: {
@@ -25,14 +23,12 @@ export function Battlefield({
   canAim: boolean;
   mySeat: number | null;
   angle: number;
-  power: number;
-  straight: boolean;
-  onAim: (angle: number, power: number, done: boolean) => void;
+  onAim: (angle: number, done: boolean) => void;
   children?: React.ReactNode;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const cvs = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ x: number; y: number } | null>(null);
+  const dragging = useRef(false);
 
   // attach + loop + resize
   useEffect(() => {
@@ -58,21 +54,17 @@ export function Battlefield({
 
   // keep the scene's idea of my aim current
   useEffect(() => {
-    scene.setAim(canAim && mySeat !== null ? { seat: mySeat, angle, power, guide: true, straight, drag: drag.current } : null);
-  }, [scene, canAim, mySeat, angle, power, straight]);
+    scene.setAim(canAim && mySeat !== null ? { seat: mySeat, angle } : null);
+  }, [scene, canAim, mySeat, angle]);
 
   const aimAt = (clientX: number, clientY: number, done: boolean) => {
     if (mySeat === null) return;
     const p = scene.toWorld(clientX, clientY);
     const t = scene.tankPos(mySeat);
     if (!p || !t) return;
-    const dx = p.x - t.x;
-    const dy = p.y - (t.y + 15);
-    let a = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (dy < 0) a = dx >= 0 ? 0 : 180;
-    const pw = Math.max(0, Math.min(100, Math.hypot(dx, dy) / 3.2));
-    drag.current = done ? null : p;
-    onAim(Math.round(Math.max(0, Math.min(180, a))), Math.round(pw), done);
+    const deg = (Math.atan2(p.y - (t.y + 15), p.x - t.x) * 180) / Math.PI;
+    dragging.current = !done;
+    onAim(((Math.round(deg) % 360) + 360) % 360, done);
   };
 
   return (
@@ -87,15 +79,15 @@ export function Battlefield({
           aimAt(e.clientX, e.clientY, false);
         }}
         onPointerMove={(e) => {
-          if (!canAim || !drag.current) return;
+          if (!canAim || !dragging.current) return;
           aimAt(e.clientX, e.clientY, false);
         }}
         onPointerUp={(e) => {
-          if (!canAim || !drag.current) return;
+          if (!canAim || !dragging.current) return;
           aimAt(e.clientX, e.clientY, true);
         }}
         onPointerCancel={() => {
-          drag.current = null;
+          dragging.current = false;
         }}
       />
       {children}

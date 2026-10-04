@@ -20,7 +20,7 @@ import {
   tankTilt,
   W,
 } from "@/lib/games/tanks/terrain";
-import { aimGuide, TPS } from "@/lib/games/tanks/sim";
+import { TPS } from "@/lib/games/tanks/sim";
 import type { FxStyle, LastDrive, LastShot, ShotEvent, TankColor, Track, TanksView } from "@/lib/games/tanks/types";
 import {
   boltPath,
@@ -35,13 +35,14 @@ import {
   drawTrail,
   drawTwister,
   drawWell,
+  heart,
   renderRock,
   renderSky,
   TRAIL,
   Y,
 } from "./draw";
 import { arcs, debris, droplets, embers, fireball, Fx, glitter, mix, ring, smoke, soft, sparks, withAlpha } from "./fx";
-import { BIOME, TANK } from "./palette";
+import { BIOME, TANK, type Look } from "./palette";
 import {
   sfxBeam,
   sfxBolt,
@@ -155,13 +156,6 @@ export interface SceneCallbacks {
 export interface LocalAim {
   seat: number;
   angle: number;
-  power: number;
-  /** draw the guide */
-  guide: boolean;
-  /** a beam is loaded: the guide is a straight line */
-  straight?: boolean;
-  /** dragging on the canvas — show the pull line */
-  drag: { x: number; y: number } | null;
 }
 
 export class Scene {
@@ -187,6 +181,9 @@ export class Scene {
   wind = 0;
   gravity = 1;
   biome: TanksView["biome"] = "mesa";
+  /** the viewer's chosen theme ("auto" = the map's own scenery) */
+  theme: "auto" | Exclude<Look, TanksView["biome"]> = "auto";
+  look: Look = "mesa";
   scenery = 0;
   time = 0;
   lastNow = 0;
@@ -231,13 +228,13 @@ export class Scene {
   private ensureArt(force = false) {
     if (typeof document === "undefined") return;
     const scale = Math.min(2, Math.max(0.5, this.pxScale));
-    const key = `${this.biome}:${this.scenery}:${scale.toFixed(2)}`;
+    const key = `${this.look}:${this.scenery}:${scale.toFixed(2)}`;
     if (!force && key === this.artKey) return;
     if (key === this.artKey && this.sky) return;
-    const biomeChanged = !this.artKey.startsWith(`${this.biome}:${this.scenery}:`);
+    const biomeChanged = !this.artKey.startsWith(`${this.look}:${this.scenery}:`);
     this.artKey = key;
-    this.sky = renderSky(this.biome, this.scenery, scale);
-    this.rock = renderRock(this.biome, this.scenery, scale);
+    this.sky = renderSky(this.look, this.scenery, scale);
+    this.rock = renderRock(this.look, this.scenery, scale);
     if (!this.scorch || biomeChanged) {
       this.scorch = document.createElement("canvas");
       this.scorch.width = W;
@@ -275,6 +272,7 @@ export class Scene {
     this.effects = [];
     this.popups = [];
     this.biome = v.biome;
+    this.look = this.theme === "auto" ? v.biome : this.theme;
     this.scenery = v.scenery;
     this.gravity = v.gravity;
     this.ensureArt();
@@ -387,6 +385,18 @@ export class Scene {
     this.next();
   }
 
+  /** Switch the battlefield's look. Scorch marks are kept. */
+  setTheme(theme: Scene["theme"]) {
+    this.theme = theme;
+    const look = theme === "auto" ? this.biome : theme;
+    if (look === this.look) return;
+    this.look = look;
+    const scorch = this.scorch;
+    this.ensureArt(true);
+    if (scorch && this.scorch !== scorch) this.scorch?.getContext("2d")?.drawImage(scorch, 0, 0);
+    this.seedAmbient();
+  }
+
   setAim(a: LocalAim | null) {
     this.aim = a;
   }
@@ -425,7 +435,7 @@ export class Scene {
       const t = this.tanks.get((cur.beat as Extract<Beat, { kind: "drive" }>).d.seat);
       if (t && t.tween && Math.random() < dt * 30) {
         const dir = Math.sign(t.tween.tx - t.tween.fx);
-        this.fx.add({ k: "smoke", x: t.x - dir * 14, y: t.y + 2, vx: -dir * 20 + rnd(-8, 8), vy: rnd(6, 18), drag: 0.5, max: rnd(0.6, 1.1), size: 2.5, grow: 9, color: BIOME[this.biome].debris[0], alpha: 0.4 });
+        this.fx.add({ k: "smoke", x: t.x - dir * 14, y: t.y + 2, vx: -dir * 20 + rnd(-8, 8), vy: rnd(6, 18), drag: 0.5, max: rnd(0.6, 1.1), size: 2.5, grow: 9, color: BIOME[this.look].debris[0], alpha: 0.4 });
       }
       if (now >= cur.start + cur.dur) this.finishBeat();
     }
@@ -481,8 +491,8 @@ export class Scene {
         if (u >= 1) {
           if (tw.how === "fall" && tw.fy - tw.ty > 14) {
             sfxThud();
-            debris(this.fx, t.x, t.y, 8, BIOME[this.biome].debris, 70);
-            smoke(this.fx, t.x, t.y, 3, 10, withAlpha(BIOME[this.biome].debris[0], 1), this.wind, 10);
+            debris(this.fx, t.x, t.y, 8, BIOME[this.look].debris, 70);
+            smoke(this.fx, t.x, t.y, 3, 10, withAlpha(BIOME[this.look].debris[0], 1), this.wind, 10);
           }
           t.x = tw.tx;
           t.y = tw.ty;
@@ -556,7 +566,7 @@ export class Scene {
         t.tween = { fx: t.x, fy: t.y, tx: e.x, ty: e.y, start: now, dur: e.d * MS_PER_TICK, how: e.how };
         if (e.how === "blink") sfxWarp();
         if (e.how === "toss") sfxWind(0.8);
-        if (e.how === "push") debris(this.fx, t.x, t.y, 6, BIOME[this.biome].debris, 60);
+        if (e.how === "push") debris(this.fx, t.x, t.y, 6, BIOME[this.look].debris, 60);
         return;
       }
       case "beam": {
@@ -658,7 +668,7 @@ export class Scene {
   }
 
   private boom(x: number, y: number, r: number, fx: FxStyle) {
-    const b = BIOME[this.biome];
+    const b = BIOME[this.look];
     const wind = this.wind;
     sfxBoom(fx, r);
     const scorch = (rad: number, color: string, alpha: number) => {
@@ -812,7 +822,7 @@ export class Scene {
 
   /** Particles that tracks shed while they fly; sounds when they change state. */
   private trackFx(s: LastShot, tau: number, dt: number, cur: Playing) {
-    const b = BIOME[this.biome];
+    const b = BIOME[this.look];
     s.rec.tracks.forEach((tr, i) => {
       if (tau < tr.t0 || tau > tr.t1) return;
       const p = posAt(tr, tau);
@@ -921,7 +931,7 @@ export class Scene {
           if (chance(30)) this.fx.add({ k: "glitter", x: e.x + rnd(-160, 160), y: H - rnd(10, 30), vx: rnd(-10, 10), vy: rnd(-80, -30), max: 1.2, size: 1.4, color: "#d6b4ff" });
           break;
         case "well": {
-          const b = BIOME[this.biome];
+          const b = BIOME[this.look];
           if (chance(70)) {
             const a = rnd(0, Math.PI * 2);
             const d = rnd(60, 160);
@@ -939,8 +949,8 @@ export class Scene {
           if (chance(30 * k)) {
             const x = rnd(0, W);
             const gh = heightAt(this.ground, x);
-            this.fx.add({ k: "smoke", x, y: gh + 2, vx: rnd(-10, 10), vy: rnd(6, 16), drag: 0.5, max: 1.4, size: 4, grow: 12, color: BIOME[this.biome].debris[0], alpha: 0.28 });
-            if (Math.random() < 0.5) debris(this.fx, x, gh, 2, BIOME[this.biome].debris, 80);
+            this.fx.add({ k: "smoke", x, y: gh + 2, vx: rnd(-10, 10), vy: rnd(6, 16), drag: 0.5, max: 1.4, size: 4, grow: 12, color: BIOME[this.look].debris[0], alpha: 0.28 });
+            if (Math.random() < 0.5) debris(this.fx, x, gh, 2, BIOME[this.look].debris, 80);
           }
           break;
         }
@@ -965,18 +975,18 @@ export class Scene {
   /* ================= ambience ================= */
 
   private seedAmbient() {
-    const n = this.biome === "tundra" ? 110 : this.biome === "ashlands" ? 80 : this.biome === "mesa" ? 40 : 0;
+    const n = this.look === "love" ? 22 : this.look === "tundra" ? 110 : this.look === "ashlands" ? 80 : this.look === "mesa" ? 40 : 0;
     this.ambient = Array.from({ length: n }, () => this.newAmbient(true));
   }
 
   private newAmbient(anywhere: boolean): Ambient {
-    const b = this.biome;
+    const b = this.look;
     return {
       x: rnd(-40, W + 40),
       y: anywhere ? rnd(0, H) : H + 10,
       vx: 0,
-      vy: b === "tundra" ? -rnd(14, 34) : b === "ashlands" ? -rnd(6, 20) : rnd(-3, 3),
-      size: b === "tundra" ? rnd(0.8, 2.2) : b === "ashlands" ? rnd(0.8, 1.8) : rnd(0.6, 1.4),
+      vy: b === "love" ? -rnd(8, 18) : b === "tundra" ? -rnd(14, 34) : b === "ashlands" ? -rnd(6, 20) : rnd(-3, 3),
+      size: b === "love" ? rnd(4, 8) : b === "tundra" ? rnd(0.8, 2.2) : b === "ashlands" ? rnd(0.8, 1.8) : rnd(0.6, 1.4),
       ph: rnd(0, 10),
       hot: b === "ashlands" && Math.random() < 0.3,
     };
@@ -986,9 +996,9 @@ export class Scene {
     for (let i = 0; i < this.ambient.length; i++) {
       const a = this.ambient[i];
       a.x += (this.wind * 2.2 + Math.sin(this.time * 1.3 + a.ph) * 8) * dt;
-      a.y += a.vy * dt + (this.biome === "mesa" ? Math.sin(this.time + a.ph) * 4 * dt : 0);
+      a.y += a.vy * dt + (this.look === "mesa" ? Math.sin(this.time + a.ph) * 4 * dt : 0);
       if (a.y < heightAt(this.ground, Math.max(0, Math.min(W, a.x))) || a.y < 0 || a.x < -60 || a.x > W + 60) {
-        this.ambient[i] = this.newAmbient(this.biome === "mesa");
+        this.ambient[i] = this.newAmbient(this.look === "mesa");
         if (this.ambient[i].x < 0 && this.wind < 0) this.ambient[i].x = W + 30;
       }
     }
@@ -1000,7 +1010,7 @@ export class Scene {
     const ctx = this.ctx;
     if (!ctx || !this.canvas) return;
     this.ensureArt();
-    const b = BIOME[this.biome];
+    const b = BIOME[this.look];
     const s = this.pxScale;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#000";
@@ -1139,7 +1149,7 @@ export class Scene {
 
   private drawSkyLife(ctx: CanvasRenderingContext2D) {
     const t = this.time;
-    if (this.biome === "tundra") {
+    if (this.look === "tundra") {
       // aurora curtains
       ctx.globalCompositeOperation = "lighter";
       for (let k = 0; k < 3; k++) {
@@ -1157,7 +1167,7 @@ export class Scene {
         }
       }
       ctx.globalCompositeOperation = "source-over";
-    } else if (this.biome === "lunar") {
+    } else if (this.look === "lunar") {
       // a few stars that glint
       ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < 12; i++) {
@@ -1175,13 +1185,18 @@ export class Scene {
   private drawAmbient(ctx: CanvasRenderingContext2D) {
     if (!this.ambient.length) return;
     for (const a of this.ambient) {
-      if (this.biome === "tundra") {
+      if (this.look === "love") {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = "#ffffff";
+        heart(ctx, a.x, Y(a.y), a.size * (0.9 + 0.1 * Math.sin(this.time * 2 + a.ph)));
+        ctx.fill();
+      } else if (this.look === "tundra") {
         ctx.globalAlpha = 0.75;
         ctx.fillStyle = "#f2f8ff";
         ctx.beginPath();
         ctx.arc(a.x, Y(a.y), a.size, 0, Math.PI * 2);
         ctx.fill();
-      } else if (this.biome === "ashlands") {
+      } else if (this.look === "ashlands") {
         if (a.hot) {
           ctx.globalCompositeOperation = "lighter";
           ctx.globalAlpha = 0.5 + 0.5 * Math.sin(this.time * 6 + a.ph);
@@ -1212,7 +1227,7 @@ export class Scene {
     ctx.lineTo(W, Y(g[NCOL - 1]) + dy);
   }
 
-  private drawGround(ctx: CanvasRenderingContext2D, b: (typeof BIOME)[keyof typeof BIOME]) {
+  private drawGround(ctx: CanvasRenderingContext2D, b: (typeof BIOME)[Look]) {
     ctx.beginPath();
     ctx.moveTo(0, H + 30);
     this.surfacePath(ctx, 0, true);
@@ -1239,7 +1254,7 @@ export class Scene {
     // the crust
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    if (this.biome === "tundra") {
+    if (this.look === "tundra") {
       ctx.strokeStyle = "#c9dcf2";
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -1250,7 +1265,7 @@ export class Scene {
       ctx.beginPath();
       this.surfacePath(ctx, 0);
       ctx.stroke();
-    } else if (this.biome === "ashlands") {
+    } else if (this.look === "ashlands") {
       ctx.strokeStyle = b.lip;
       ctx.lineWidth = 2.6;
       ctx.beginPath();
@@ -1267,7 +1282,7 @@ export class Scene {
       ctx.globalCompositeOperation = "source-over";
     } else {
       ctx.strokeStyle = b.lip;
-      ctx.lineWidth = this.biome === "lunar" ? 2 : 2.6;
+      ctx.lineWidth = this.look === "lunar" ? 2 : 2.6;
       ctx.beginPath();
       this.surfacePath(ctx, 0);
       ctx.stroke();
@@ -1294,52 +1309,25 @@ export class Scene {
     return Math.max(cssPx * 0.9, Math.min(cssPx * 3, cssPx / Math.max(0.01, this.cssScale)));
   }
 
+  /** My turn: a faint ring around the turret with a notch at the barrel's angle. No trajectory. */
   private drawAim(ctx: CanvasRenderingContext2D) {
     const a = this.aim;
     if (!a || this.busy) return;
     const t = this.tanks.get(a.seat);
     if (!t || !t.present) return;
     const col = TANK[t.color].light;
-    if (a.guide) {
-      const rad0 = (a.angle * Math.PI) / 180;
-      const pts: [number, number][] = a.straight
-        ? Array.from({ length: 18 }, (_, i) => [t.x + Math.cos(rad0) * (26 + i * 14), t.y + 15 + Math.sin(rad0) * (26 + i * 14)])
-        : aimGuide(t.x, t.y, a.angle, a.power, this.gravity, 18, 3);
-      pts.forEach(([x, y], i) => {
-        const u = i / pts.length;
-        ctx.globalAlpha = (1 - u) * 0.9;
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.arc(x, Y(y), 2.2 - u * 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalAlpha = 1;
-    }
-    if (a.drag) {
-      ctx.setLineDash([3, 5]);
-      ctx.strokeStyle = withAlpha(col, 0.7);
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(t.x, Y(t.y + 15));
-      ctx.lineTo(a.drag.x, Y(a.drag.y));
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.strokeStyle = col;
-      ctx.beginPath();
-      ctx.arc(a.drag.x, Y(a.drag.y), 6, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    // protractor arc at the turret
-    ctx.strokeStyle = withAlpha(col, 0.35);
+    const cx = t.x;
+    const cy = Y(t.y + 15);
+    ctx.strokeStyle = withAlpha(col, 0.22);
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(t.x, Y(t.y + 15), 30, Math.PI, 2 * Math.PI);
+    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
     ctx.stroke();
     const rad = (a.angle * Math.PI) / 180;
     ctx.strokeStyle = col;
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(t.x, Y(t.y + 15), 30, -rad - 0.06, -rad + 0.06);
+    ctx.arc(cx, cy, 30, -rad - 0.08, -rad + 0.08);
     ctx.stroke();
   }
 

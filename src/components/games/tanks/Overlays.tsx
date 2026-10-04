@@ -157,8 +157,9 @@ export function TanksRulesModal({ onClose }: { onClose: () => void }) {
             nothing but can win you the war.
           </Rule>
           <Rule title="Firing">
-            On your turn, set the elevation and the charge, load a weapon and fire. Every weapon fires exactly once. Drag on the
-            field to aim (direction is angle, distance is power), or use the dials. Wind changes every turn — watch the sock.
+            On your turn, set the angle and power, load a weapon and fire. The barrel turns a full circle — you can fire
+            straight down off a ledge. Drag on the field to point it, or use the sliders. Every weapon fires exactly once.
+            Your power and weapon stay hidden from the others until you fire. Wind changes every turn.
           </Rule>
           <Rule title="Scoring">
             Every point of damage you deal is a point for you. Hit yourself and it comes off your score. Tanks never die —

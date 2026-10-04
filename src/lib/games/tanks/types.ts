@@ -42,7 +42,7 @@ export interface TanksPlayer {
   /** tank position: x along the ridge, y = height of the ground it rests on */
   x: number;
   y: number;
-  /** degrees, 0 = right, 90 = straight up, 180 = left */
+  /** degrees, a full circle: 0 = right, 90 = up, 180 = left, 270 = straight down */
   angle: number;
   /** 0..100 */
   power: number;
@@ -237,6 +237,8 @@ export interface TanksState {
 
 /* ---------------- client-facing view ---------------- */
 
+/** Other players' power and loaded weapon are hidden until they fire; the
+    barrel angle stays public because everyone can see the barrel. */
 export type TanksViewPlayer = Omit<TanksPlayer, never>;
 
 export interface TanksView {

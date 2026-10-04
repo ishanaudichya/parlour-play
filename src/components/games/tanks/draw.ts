@@ -7,9 +7,9 @@
    tanks and projectiles are drawn live each frame. */
 
 import { hash01, H, W } from "@/lib/games/tanks/terrain";
-import type { Biome, TankColor, TrackStyle } from "@/lib/games/tanks/types";
+import type { TankColor, TrackStyle } from "@/lib/games/tanks/types";
 import { soft, withAlpha } from "./fx";
-import { BIOME, TANK } from "./palette";
+import { BIOME, TANK, type Look } from "./palette";
 
 export const Y = (y: number) => H - y;
 const TAU = Math.PI * 2;
@@ -36,6 +36,17 @@ function noise1(rng: () => number, step: number, n: number) {
   };
 }
 
+/** A heart centred on (x, y), `r` across — used by the Love theme. */
+export function heart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.35);
+  ctx.bezierCurveTo(x - r * 0.05, y + r * 0.3, x - r * 0.55, y + r * 0.05, x - r * 0.5, y - r * 0.2);
+  ctx.bezierCurveTo(x - r * 0.45, y - r * 0.5, x - r * 0.05, y - r * 0.5, x, y - r * 0.22);
+  ctx.bezierCurveTo(x + r * 0.05, y - r * 0.5, x + r * 0.45, y - r * 0.5, x + r * 0.5, y - r * 0.2);
+  ctx.bezierCurveTo(x + r * 0.55, y + r * 0.05, x + r * 0.05, y + r * 0.3, x, y + r * 0.35);
+  ctx.closePath();
+}
+
 function canvas(w: number, h: number) {
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(w));
@@ -45,7 +56,7 @@ function canvas(w: number, h: number) {
 
 /* ================= the sky ================= */
 
-export function renderSky(biome: Biome, seed: number, scale: number): HTMLCanvasElement {
+export function renderSky(biome: Look, seed: number, scale: number): HTMLCanvasElement {
   const paint = BIOME[biome];
   const c = canvas(W * scale, H * scale);
   const ctx = c.getContext("2d")!;
@@ -58,8 +69,8 @@ export function renderSky(biome: Biome, seed: number, scale: number): HTMLCanvas
   ctx.fillRect(0, 0, W, H);
 
   // stars wherever the sky is dark enough
-  if (biome !== "mesa") {
-    const n = biome === "lunar" ? 420 : biome === "tundra" ? 220 : 40;
+  if (biome !== "mesa" && biome !== "love" && biome !== "slate") {
+    const n = biome === "lunar" ? 420 : biome === "tundra" ? 220 : biome === "classic" ? 70 : 40;
     for (let i = 0; i < n; i++) {
       const x = rng() * W;
       const y = Math.pow(rng(), 1.6) * H * (biome === "lunar" ? 0.95 : 0.6);
@@ -94,6 +105,19 @@ export function renderSky(biome: Biome, seed: number, scale: number): HTMLCanvas
       ctx.ellipse(x, y, w, 2.2 + rng() * 3, 0, 0, TAU);
       ctx.fill();
     }
+  }
+
+  if (biome === "love") {
+    for (let i = 0; i < 9; i++) {
+      const x = rng() * W;
+      const y = H * (0.08 + rng() * 0.4);
+      const r = 7 + rng() * 12;
+      ctx.globalAlpha = 0.12 + rng() * 0.12;
+      ctx.fillStyle = "#ffffff";
+      heart(ctx, x, y, r);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   if (biome === "tundra") {
@@ -175,7 +199,10 @@ export function renderSky(biome: Biome, seed: number, scale: number): HTMLCanvas
   }
 
   // two ranges of far hills, the back one hazier
-  const shapes: Record<Biome, (u: number, i: number, layer: number) => number> = {
+  const shapes: Record<Look, (u: number, i: number, layer: number) => number> = {
+    classic: (u) => u * 0.5,
+    love: (u) => u * 0.6,
+    slate: (u) => u * 0.45,
     mesa: (u, _i, layer) => {
       const q = Math.round(u * 4) / 4;
       return q * (layer ? 0.75 : 1);
@@ -220,7 +247,7 @@ export function renderSky(biome: Biome, seed: number, scale: number): HTMLCanvas
 
 /* ================= the rock ================= */
 
-export function renderRock(biome: Biome, seed: number, scale: number): HTMLCanvasElement {
+export function renderRock(biome: Look, seed: number, scale: number): HTMLCanvasElement {
   const paint = BIOME[biome];
   const c = canvas(W * scale, H * scale);
   const ctx = c.getContext("2d")!;
@@ -263,7 +290,7 @@ export function renderRock(biome: Biome, seed: number, scale: number): HTMLCanva
   }
 
   // flecks and grit
-  for (let i = 0; i < 9000; i++) {
+  for (let i = 0; i < (paint.calm ? 2500 : 9000); i++) {
     const x = rng() * W;
     const y = rng() * H;
     ctx.globalAlpha = 0.05 + rng() * 0.12;
@@ -273,7 +300,7 @@ export function renderRock(biome: Biome, seed: number, scale: number): HTMLCanva
   ctx.globalAlpha = 1;
 
   // pebbles with a little highlight
-  for (let i = 0; i < 420; i++) {
+  for (let i = 0; i < (paint.calm ? 0 : 420); i++) {
     const x = rng() * W;
     const y = rng() * H;
     const r = 1 + rng() * 3.4;

@@ -41,6 +41,8 @@ function shuffle<T>(arr: T[], rng: Rng): T[] {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+/** Any angle onto [0, 360). */
+export const wrapAngle = (a: number) => ((Math.round(a) % 360) + 360) % 360;
 
 /* ---------------- internals ---------------- */
 
@@ -294,7 +296,7 @@ export function applyTanksMove(s: TanksState, playerId: string, move: TanksMove,
     case "aim": {
       if (s.phase !== "aim") err("Not now.");
       if (!Number.isFinite(move.angle) || !Number.isFinite(move.power)) err("Bad aim.");
-      p.angle = clamp(Math.round(move.angle), 0, 180);
+      p.angle = wrapAngle(move.angle);
       p.power = clamp(Math.round(move.power), 0, 100);
       if (move.weapon !== undefined) {
         if (!isWeapon(move.weapon) || !p.arsenal.includes(move.weapon)) err("You don't have that weapon.");
@@ -325,7 +327,7 @@ export function applyTanksMove(s: TanksState, playerId: string, move: TanksMove,
       if (!isWeapon(move.weapon) || !p.arsenal.includes(move.weapon)) err("You don't have that weapon.");
       if (!Number.isFinite(move.angle) || !Number.isFinite(move.power)) err("Bad aim.");
       s.updatedAt = now;
-      doFire(s, p, move.weapon, clamp(Math.round(move.angle), 0, 180), clamp(Math.round(move.power), 0, 100), rng);
+      doFire(s, p, move.weapon, wrapAngle(move.angle), clamp(Math.round(move.power), 0, 100), rng);
       return;
     }
     default:
@@ -387,11 +389,22 @@ export function forfeitTanks(s: TanksState, playerId: string, now: number, rng: 
 
 /* ---------------- redaction ---------------- */
 
-/** Perfect information: everyone (players and spectators alike) sees this. */
+/**
+ * The board is public — terrain, arsenals, scores, every barrel's angle —
+ * but what a player has dialled in is theirs: other players' power and
+ * loaded weapon stay hidden until the shot is fired.
+ */
 export function redactTanks(s: TanksState, viewerId: string, now: number): TanksView {
   return {
     phase: s.phase,
-    players: s.players.map((p) => ({ ...p, arsenal: p.arsenal.slice(), drafted: p.drafted.slice(), best: p.best ? { ...p.best } : null })),
+    players: s.players.map((p) => ({
+      ...p,
+      power: p.id === viewerId ? p.power : 0,
+      loaded: p.id === viewerId ? p.loaded : null,
+      arsenal: p.arsenal.slice(),
+      drafted: p.drafted.slice(),
+      best: p.best ? { ...p.best } : null,
+    })),
     youId: viewerId,
     biome: s.biome,
     gravity: s.gravity,

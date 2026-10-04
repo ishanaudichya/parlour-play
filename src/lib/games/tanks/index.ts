@@ -1,4 +1,4 @@
-export { autoDraft, tanksModule } from "./engine";
+export { autoDraft, tanksModule, wrapAngle } from "./engine";
 export * from "./sim";
 export * from "./terrain";
 export * from "./types";
