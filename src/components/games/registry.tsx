@@ -21,6 +21,8 @@ import { MonoDealScreen } from "./monodeal/MonoDealScreen";
 import { MonoDealPoster } from "./monodeal/Poster";
 import { SecretHitlerScreen } from "./secrethitler/SecretHitlerScreen";
 import { SecretHitlerPoster } from "./secrethitler/Poster";
+import { StaccsPoster } from "./staccs/Poster";
+import { StaccsScreen } from "./staccs/StaccsScreen";
 import { TanksPoster } from "./tanks/Poster";
 import { TanksScreen } from "./tanks/TanksScreen";
 import { TeenPattiPoster } from "./teenpatti/Poster";
@@ -50,4 +52,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   chainreaction: { Screen: asScreen(ChainReactionScreen), Poster: ChainReactionPoster },
   ludo: { Screen: asScreen(LudoScreen), Poster: LudoPoster },
   tanks: { Screen: asScreen(TanksScreen), Poster: TanksPoster },
+  staccs: { Screen: asScreen(StaccsScreen), Poster: StaccsPoster },
 };

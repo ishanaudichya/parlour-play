@@ -27,6 +27,7 @@ const GAME_ORDER: GameType[] = [
   "chainreaction",
   "ludo",
   "tanks",
+  "staccs",
 ];
 
 const EASE = [0.16, 1, 0.3, 1] as const;

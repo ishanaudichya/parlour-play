@@ -12,7 +12,8 @@ export type GameType =
   | "secrethitler"
   | "chainreaction"
   | "ludo"
-  | "tanks";
+  | "tanks"
+  | "staccs";
 
 export interface GamePlayer {
   id: string;

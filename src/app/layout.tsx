@@ -26,12 +26,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "PARLOUR — twelve games, one table",
+  title: "PARLOUR — thirteen games, one table",
   description:
-    "Game night without the apps. Coup, UNO, Monopoly Deal, Teen Patti, Mafia, Battleship, Four in a Row, Avalon, Secret Hitler, Chain Reaction, Ludo and Pocket Tanks, played live with friends — one party link, no accounts.",
+    "Game night without the apps. Coup, UNO, Monopoly Deal, Teen Patti, Mafia, Battleship, Four in a Row, Avalon, Secret Hitler, Chain Reaction, Ludo, Pocket Tanks and STACCS, played live with friends — one party link, no accounts.",
   openGraph: {
     title: "PARLOUR",
-    description: "Twelve games, one table. Coup · UNO · Monopoly Deal · Teen Patti · Mafia · Battleship · Four in a Row · Avalon · Secret Hitler · Chain Reaction · Ludo · Pocket Tanks — live with friends, just a code.",
+    description: "Thirteen games, one table. Coup · UNO · Monopoly Deal · Teen Patti · Mafia · Battleship · Four in a Row · Avalon · Secret Hitler · Chain Reaction · Ludo · Pocket Tanks · STACCS — live with friends, just a code.",
     type: "website",
   },
 };
