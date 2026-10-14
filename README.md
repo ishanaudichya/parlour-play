@@ -1,9 +1,9 @@
-# PARLOUR — thirteen games, one table
+# PARLOUR — fourteen games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Thirteen games, thirteen design languages:**
+**Fourteen games, fourteen design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -18,6 +18,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Secret Hitler** | 5–8 | 1930s ministry letterpress |
 | **Chain Reaction** | 2–8 | black glass, luminous orbs, grid glows in the mover's colour |
 | **Ludo** | 2–4 | heirloom lacquered board, brass bevel, ivory enamel, glossy tokens |
+| **Dots and Boxes** | 2–8 | an engineer's notebook on a desk: quad ruling, one ink per player, hatched boxes |
 | **STACCS** | 2–8 | isometric toy blocks: white enamel cubes, pixel suits, a cobalt table |
 | **Pocket Tanks** | 2–4 | army-surplus fire-control console, stencil type, amber readouts, a canvas battlefield |
 
@@ -84,6 +85,7 @@ npm run simulate:avalon     # Avalon      (3000 games + role-knowledge privacy i
 npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation & privacy invariants)
 npm run simulate:chainreaction # Chain Reaction (3000 games, 2–8 players, independent cascade re-derivation)
 npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry and rule unit cases)
+npm run simulate:dots       # Dots and Boxes (1120 games on every page size 2×2–12×12, 2–8 players, page re-derived every step)
 npm run simulate:staccs     # STACCS      (2100 games, 2–8 players, every placement re-derived + rule cases)
 npm run simulate:tanks      # Pocket Tanks (30 weapons × 220 random shots with independent replay check, 360 games, rule cases)
 npm run simulate:all
@@ -135,6 +137,12 @@ npm run simulate:all
   moves by itself. 30 s per roll/choice with a sensible auto-play; leavers' tokens are swept.
   The client replays every roll (die tumble) and move (square-by-square hop, captures flying
   home) from the recorded `lastRoll` / `lastMove`.
+- **Dots and Boxes** — 2–8 players. The game opens on a setup page: the host chooses how many
+  boxes across and down (2×2 to 12×12, with presets), everyone watching a live preview, and the
+  host's last size is remembered for the next page. Draw a line between neighbouring dots; the
+  fourth side of a box claims it and you go again; most boxes when every line is drawn wins,
+  level scores draw. 30 s a line with a sensible auto-line (take a free box, else hand nothing
+  over, else hand over the least); leavers are skipped and keep their boxes.
 - **STACCS** — the 3D matching card game (official "UH OH!" rules; "UH OH! PARTY" with two
   decks from 6 players). Hexagonal cube cards stack into one shared structure: same suit on a
   TOP, same number on a SIDE, same letter on a FACE, and a card must match every surface it

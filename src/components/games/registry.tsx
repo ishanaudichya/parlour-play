@@ -12,6 +12,8 @@ import { ChainReactionPoster } from "./chainreaction/Poster";
 import { Connect4Screen } from "./connect4/Connect4Screen";
 import { Connect4Poster } from "./connect4/Poster";
 import { CoupScreen } from "./coup/CoupScreen";
+import { DotsPoster } from "./dots/Poster";
+import { DotsScreen } from "./dots/DotsScreen";
 import { LudoScreen } from "./ludo/LudoScreen";
 import { LudoPoster } from "./ludo/Poster";
 import { CoupPoster } from "./coup/Poster";
@@ -53,4 +55,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   ludo: { Screen: asScreen(LudoScreen), Poster: LudoPoster },
   tanks: { Screen: asScreen(TanksScreen), Poster: TanksPoster },
   staccs: { Screen: asScreen(StaccsScreen), Poster: StaccsPoster },
+  dots: { Screen: asScreen(DotsScreen), Poster: DotsPoster },
 };

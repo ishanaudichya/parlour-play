@@ -1,7 +1,7 @@
 "use client";
 
 /* The landing page IS a game table, seen from above: walnut rim, oxblood felt
-   under a lamp, the thirteen games scattered across it as physical artifacts,
+   under a lamp, the fourteen games scattered across it as physical artifacts,
    and a paper score pad in the middle where you sign in for the night. */
 
 import { motion } from "framer-motion";
@@ -184,6 +184,24 @@ function Artifact({ k }: { k: GameType }) {
           </svg>
         </div>
       );
+    case "dots":
+      return (
+        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#c9bfa6] bg-[#fbf7ec]">
+          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
+            {Array.from({ length: 12 }, (_, i) => (
+              <line key={`g${i}`} x1="0" y1={i * 5} x2="50" y2={i * 5} stroke="rgba(80,130,200,0.18)" strokeWidth="0.3" />
+            ))}
+            <line x1="6" y1="0" x2="6" y2="70" stroke="rgba(214,70,70,0.45)" strokeWidth="0.4" />
+            <rect x="14.6" y="14.6" width="8.8" height="8.8" fill="#2457c5" opacity="0.18" />
+            <text x="19" y="21.6" textAnchor="middle" fontSize="6" fontWeight="700" fill="#2457c5">A</text>
+            <path d="M14 14 H24 V24 H14 Z M24 14 H34 M34 14 V24 M24 34 H34" fill="none" stroke="#2457c5" strokeWidth="0.9" strokeLinecap="round" />
+            <path d="M14 24 V34 M24 24 V34 M34 24 V34" fill="none" stroke="#d23a32" strokeWidth="0.9" strokeLinecap="round" />
+            {[14, 24, 34].map((y) => [14, 24, 34].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="0.9" fill="#2c2f3a" />))}
+            <text x="25" y="52" textAnchor="middle" fontSize="6.4" fontWeight="700" fill="#23262f" fontFamily="cursive">Dots &amp; Boxes</text>
+            <text x="25" y="59" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a7a5c">DRAW · CLOSE · AGAIN</text>
+          </svg>
+        </div>
+      );
     case "staccs":
       return (
         <div className="relative aspect-5/7 w-full overflow-hidden border-[3px] border-[#0b1a4a] bg-[radial-gradient(circle_at_50%_20%,#2a57d6,#13308f_70%)]">
@@ -247,6 +265,7 @@ const SCATTER: { key: GameType; x: string; y: string; rot: number; w: number; z?
   { key: "ludo", x: "23.5%", y: "3%", rot: 5, w: 86 },
   { key: "tanks", x: "3.5%", y: "35%", rot: -7, w: 88, z: 1 },
   { key: "staccs", x: "88%", y: "80%", rot: 6, w: 84 },
+  { key: "dots", x: "26%", y: "76%", rot: 8, w: 82 },
 ];
 
 const TOSS = { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const };
@@ -358,7 +377,7 @@ function ScorePad({
         </span>
 
         <div className="font-hand text-[34px] font-bold leading-none text-[#463d2e]">Game night?</div>
-        <div className="mt-1 font-hand text-[17px] text-[#7a6d58]">pull up a chair — thirteen games on the table</div>
+        <div className="mt-1 font-hand text-[17px] text-[#7a6d58]">pull up a chair — fourteen games on the table</div>
 
         <label className="mt-6 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a7d68]" htmlFor="pad-name">
           Your name
@@ -509,7 +528,7 @@ export function Landing() {
             <span className="font-shell neon-text text-[42px] leading-none sm:text-[54px]" translate="no">
               Parlour
             </span>
-            <span className="slabel mt-2">thirteen games · one table · tonight</span>
+            <span className="slabel mt-2">fourteen games · one table · tonight</span>
           </motion.div>
 
           {/* desktop: artifacts scattered on the felt */}

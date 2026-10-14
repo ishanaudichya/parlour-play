@@ -13,7 +13,8 @@ export type GameType =
   | "chainreaction"
   | "ludo"
   | "tanks"
-  | "staccs";
+  | "staccs"
+  | "dots";
 
 export interface GamePlayer {
   id: string;

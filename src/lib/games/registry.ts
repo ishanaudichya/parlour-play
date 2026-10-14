@@ -2,6 +2,7 @@ import { avalonModule } from "./avalon";
 import { battleshipModule } from "./battleship";
 import { chainreactionModule } from "./chainreaction";
 import { connect4Module } from "./connect4";
+import { dotsModule } from "./dots";
 import { coupModule } from "./coup/engine";
 import { ludoModule } from "./ludo";
 import { mafiaModule } from "./mafia";
@@ -29,6 +30,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   ludo: ludoModule as GameModule,
   tanks: tanksModule as GameModule,
   staccs: staccsModule as GameModule,
+  dots: dotsModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -47,6 +49,7 @@ export const GAME_META: Record<
   secrethitler: { title: "Secret Hitler", tagline: "Pass policies, trust no cabinet", min: 5, max: 8, accent: "#e05a33" },
   chainreaction: { title: "Chain Reaction", tagline: "Fill the cell, start the cascade", min: 2, max: 8, accent: "#c86bff" },
   ludo: { title: "Ludo", tagline: "Roll, race, send them home", min: 2, max: 4, accent: "#c8402e" },
+  dots: { title: "Dots and Boxes", tagline: "Draw a line, close a box, go again", min: 2, max: 8, accent: "#2f5bd3" },
   staccs: { title: "STACCS", tagline: "Match in 3D, build the STACC", min: 2, max: 8, accent: "#3d7bff" },
   tanks: { title: "Pocket Tanks", tagline: "Draft an arsenal, level the ridge", min: 2, max: 4, accent: "#ff8a3d" },
 };
