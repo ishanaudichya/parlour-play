@@ -85,7 +85,7 @@ npm run simulate:secrethitler # Secret Hitler (3000 games + policy-conservation 
 npm run simulate:chainreaction # Chain Reaction (3000 games, 2–8 players, independent cascade re-derivation)
 npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry and rule unit cases)
 npm run simulate:staccs     # STACCS      (2100 games, 2–8 players, every placement re-derived + rule cases)
-npm run simulate:tanks      # Pocket Tanks (34 weapons × 220 random shots with independent replay check, 360 games, rule cases)
+npm run simulate:tanks      # Pocket Tanks (30 weapons × 220 random shots with independent replay check, 360 games, rule cases)
 npm run simulate:all
 ```
 
@@ -143,14 +143,15 @@ npm run simulate:all
   Zeros block and reverse, J/K attack (counterable, additive), Q gives, A goes again, wilds
   turn the STACC (only into an open direction) and lock everything behind them, multiple
   numbers at once, UH OH with catches, table edges, fewest-cards on a jam.
-- **Pocket Tanks** — 2–4 players on a destructible heightmap ridge (dirt settles into craters,
-  tanks fall with it and long falls hurt). A snake draft fills each arsenal from a shared pool
-  of 34 weapons (10/7/6 each by table size): shells, splitters, rollers, burrowers, beams, a
-  ricocheting laser, napalm that flows downhill, acid rain, lightning that seeks steel, air
-  raids, meteor calls, an orbital strike, a singularity that drags tanks in, earthquakes,
-  volcanoes, a buzzsaw, a tornado, fireworks, dirt and walls, a teleporter. Each weapon fires
-  once; every point of damage dealt scores (self-damage costs), highest score after the last
-  shot wins, level scores draw. Four drives per tank, per-turn wind, four biomes (the moon has
-  low gravity and no wind). The server resolves each shot at 60 ticks/s into a `ShotRecord`
-  (sampled tracks + a timeline of terrain ops, explosions, damage, tank moves); the canvas
-  client replays it frame by frame with procedural sprites, particles and synthesized sound.
+- **Pocket Tanks** — 2–4 players on a destructible heightmap ridge (dirt left hanging over a
+  hole falls into it, tanks fall with it, no fall damage). The arsenal is Pocket Tanks' original
+  30 — Single Shot, Big Shot, 3 Shot, 5 Shot, Jackhammer, Heatseeker, Tracer, Pile Driver, Dirt
+  Mover, Crazy Ivan, Spider, Sniper Rifle, Magic Wall, Dirt Slinger, Zapper, Napalm, Hail Storm,
+  Ground Hog, Worm, Homing Worm, Skipper, Chain Reaction, Pineapple, Firecracker, Homing Missile,
+  Dirtball, Tommy Gun, Mountain Mover, Scatter Shot, Cruiser — each behaving as its official
+  description says. A snake draft fills each arsenal (10/7/6 by table size) with a Random pick
+  and "pick the rest at random"; each weapon fires once; every point of damage dealt scores
+  (self-damage costs), highest score after the last shot wins, level scores draw. No wind, four
+  drives per tank. The server resolves each shot at 60 ticks/s into a `ShotRecord` (sampled
+  tracks + a timeline of terrain ops, explosions, damage, beams, tracer marks, tank moves); the
+  canvas client replays it with Pocket Tanks-style colour-cycling explosions.

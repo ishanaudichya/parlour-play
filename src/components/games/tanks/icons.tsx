@@ -1,18 +1,21 @@
-/* The armoury's insignia — one hand-drawn 24×24 mark per weapon, painted in
-   the weapon's own hue on a dark enamel disc. Used on draft cards, the
-   loader and the end card. */
+/* The armoury's insignia — one hand-drawn 24×24 mark for each of Pocket
+   Tanks' original 30, painted in the weapon's own hue on a dark disc. Used on
+   the draft cards, the weapon picker and the end card. */
 
 import type { ReactNode } from "react";
 import { WEAPONS, type WeaponId } from "@/lib/games/tanks/weapons";
 
 const INK = "#14130f";
 
-function shell(c: string, x = 12, y = 12, rot = -45, s = 1): ReactNode {
+const GROUND = "#6d4c41";
+
+/** a round bullet with a dash of motion */
+function dot(c: string, x: number, y: number, r = 2.6, trail = 0): ReactNode {
   return (
-    <g transform={`translate(${x} ${y}) rotate(${rot}) scale(${s})`}>
-      <path d="M-6 -2.6 H3 Q7 0 3 2.6 H-6 Z" fill={c} stroke={INK} strokeWidth={0.8} />
-      <rect x={-6} y={-2.6} width={2} height={5.2} fill={INK} opacity={0.55} />
-      <path d="M-5.5 -1.8 H2" stroke="#fff" strokeOpacity={0.45} strokeWidth={0.7} />
+    <g>
+      {trail > 0 && <path d={`M${x - trail} ${y + trail * 0.6}L${x - r} ${y + r * 0.4}`} stroke={c} strokeWidth={r * 0.9} strokeLinecap="round" opacity={0.45} />}
+      <circle cx={x} cy={y} r={r} fill={c} stroke={INK} strokeWidth={0.6} />
+      <circle cx={x - r * 0.3} cy={y - r * 0.3} r={r * 0.35} fill="#fff" opacity={0.8} />
     </g>
   );
 }
@@ -24,308 +27,291 @@ function burst(c: string, x: number, y: number, r: number, n = 8): ReactNode {
     const rr = i % 2 ? r * 0.5 : r;
     pts.push(`${(x + Math.cos(a) * rr).toFixed(2)},${(y + Math.sin(a) * rr).toFixed(2)}`);
   }
-  return <polygon points={pts.join(" ")} fill={c} stroke={INK} strokeWidth={0.7} strokeLinejoin="round" />;
+  return <polygon points={pts.join(" ")} fill={c} stroke={INK} strokeWidth={0.6} strokeLinejoin="round" />;
 }
 
+/** the classic explosion: concentric rings */
+function rings(x: number, y: number, r: number, cols = ["#ffeb3b", "#ff9800", "#e53935"]): ReactNode {
+  return (
+    <g>
+      {cols.map((col, i) => (
+        <circle key={i} cx={x} cy={y} r={r * (1 - i / cols.length)} fill={col} />
+      ))}
+    </g>
+  );
+}
+
+const ground = (d = "M2 18 Q12 15 22 18 V22 H2 Z") => <path d={d} fill={GROUND} />;
+const tank = (x: number, y: number, c = "#e5483a") => (
+  <g transform={`translate(${x} ${y})`}>
+    <rect x={-3.6} y={-1.6} width={7.2} height={2.4} rx={1.2} fill={INK} />
+    <path d="M-3 -1.6 L3 -1.6 L2.2 -3.4 L-2.4 -3.4 Z" fill={c} />
+  </g>
+);
+const arc = (d: string, c: string, dash = "1.4 1.2") => <path d={d} fill="none" stroke={c} strokeWidth={0.9} strokeDasharray={dash} strokeLinecap="round" />;
+
 const ICONS: Record<WeaponId, (c: string) => ReactNode> = {
-  shell: (c) => shell(c, 12, 12, -40, 1.25),
-  howitzer: (c) => (
+  single: (c) => dot(c, 13, 11, 3.6, 7),
+  big: (c) => (
     <>
-      {shell(c, 12, 12, -40, 1.55)}
-      <path d="M5 19 L9 15" stroke={c} strokeWidth={1.2} strokeLinecap="round" opacity={0.6} />
+      {rings(12, 12, 8.5)}
+      {dot(c, 12, 12, 2.6)}
     </>
   ),
-  sun: (c) => (
+  three: (c) => (
     <>
-      {Array.from({ length: 12 }, (_, i) => {
-        const a = (i / 12) * Math.PI * 2;
-        return <line key={i} x1={12 + Math.cos(a) * 6.5} y1={12 + Math.sin(a) * 6.5} x2={12 + Math.cos(a) * 9.5} y2={12 + Math.sin(a) * 9.5} stroke={c} strokeWidth={1.3} strokeLinecap="round" />;
-      })}
-      <circle cx={12} cy={12} r={5.2} fill={c} stroke={INK} strokeWidth={0.8} />
-      <circle cx={10.6} cy={10.6} r={1.6} fill="#fff" opacity={0.7} />
+      {dot(c, 7, 15, 2.2, 3)}
+      {dot(c, 12, 10, 2.2, 3)}
+      {dot(c, 17, 5.5, 2.2, 3)}
     </>
   ),
-  trident: (c) => (
+  five: (c) => (
     <>
-      {shell(c, 9, 15, -60, 0.8)}
-      {shell(c, 12, 12, -45, 0.8)}
-      {shell(c, 15, 9, -30, 0.8)}
-    </>
-  ),
-  fan: (c) => (
-    <>
-      {[-70, -55, -40, -25, -10].map((r, i) => (
-        <g key={i}>{shell(c, 6 + Math.cos((r * Math.PI) / 180) * 8, 18 + Math.sin((r * Math.PI) / 180) * 8, r, 0.62)}</g>
-      ))}
-    </>
-  ),
-  hydra: (c) => (
-    <>
-      <path d="M4 20 Q9 12 12 11" stroke={c} strokeWidth={1.6} fill="none" strokeLinecap="round" />
-      {[[-35, 18, 6], [0, 19, 11], [35, 16, 16.5]].map(([r, x, y], i) => (
-        <g key={i}>
-          <path d={`M12 11 Q${(12 + x) / 2} ${y - 3} ${x} ${y - 4}`} stroke={c} strokeWidth={1.3} fill="none" />
-          <circle cx={x} cy={y - 4} r={2.3} fill={c} stroke={INK} strokeWidth={0.7} />
-          <circle cx={x + 0.6} cy={y - 4.6} r={0.5} fill="#fff" />
-          {void r}
-        </g>
-      ))}
-    </>
-  ),
-  mirv: (c) => (
-    <>
-      <path d="M4 14 Q12 2 20 14" stroke={c} strokeWidth={1} strokeDasharray="1.5 1.5" fill="none" />
-      {[5, 9, 13, 17, 21].map((x, i) => (
-        <g key={i}>
-          <line x1={x - 0.5} y1={13} x2={x - 0.5} y2={17} stroke={c} strokeWidth={0.6} opacity={0.6} />
-          <circle cx={x - 0.5} cy={18.5} r={1.6} fill={c} stroke={INK} strokeWidth={0.6} />
-        </g>
-      ))}
-      {burst(c, 12, 7, 3, 5)}
-    </>
-  ),
-  cluster: (c) => (
-    <>
-      <circle cx={12} cy={13} r={4.6} fill={c} stroke={INK} strokeWidth={0.8} />
-      {[0, 60, 120, 180, 240, 300].map((a) => {
-        const r = (a * Math.PI) / 180;
-        return <circle key={a} cx={12 + Math.cos(r) * 8} cy={13 + Math.sin(r) * 8} r={1.7} fill={c} stroke={INK} strokeWidth={0.6} />;
-      })}
-      <circle cx={10.8} cy={11.6} r={1.2} fill="#fff" opacity={0.5} />
-    </>
-  ),
-  daisy: (c) => (
-    <>
-      <path d="M2 17 H22" stroke="#7a6a50" strokeWidth={1} />
-      {[4, 9, 14, 19].map((x, i) => (
-        <g key={i}>
-          <rect x={x - 1.5} y={12} width={3} height={5} rx={0.6} fill={i % 2 ? "#ffd34d" : c} stroke={INK} strokeWidth={0.6} />
-        </g>
-      ))}
-      {burst("#ffd34d", 19.5, 8, 3.4, 6)}
-    </>
-  ),
-  roller: (c) => (
-    <>
-      <path d="M2 20 Q12 12 22 20" stroke="#7a6a50" strokeWidth={1.2} fill="none" />
-      <circle cx={8} cy={12} r={5} fill={c} stroke={INK} strokeWidth={0.8} />
-      <path d="M8 7 A5 5 0 0 1 13 12" stroke="#c0392b" strokeWidth={1.6} fill="none" />
-      <path d="M15 11 h4 M16 14 h3" stroke={c} strokeWidth={0.9} strokeLinecap="round" opacity={0.6} />
-    </>
-  ),
-  pinball: (c) => (
-    <>
-      <path d="M3 18 L8 9 L13 17 L18 8" stroke={c} strokeWidth={0.9} strokeDasharray="1.4 1.2" fill="none" />
-      <circle cx={18.5} cy={7.5} r={3.4} fill={c} stroke={INK} strokeWidth={0.8} />
-      <circle cx={17.4} cy={6.4} r={1.1} fill="#fff" />
-      <path d="M2 20 H22" stroke="#7a6a50" strokeWidth={1} />
-    </>
-  ),
-  tunneler: (c) => (
-    <>
-      <path d="M2 9 Q8 7 22 9 V22 H2 Z" fill="#6a4a30" />
-      <path d="M5 8 Q9 13 14 15" stroke="#2a1a10" strokeWidth={3.4} strokeLinecap="round" fill="none" />
-      <g transform="translate(15.5 16) rotate(25)">
-        <path d="M-3 -2 L3 0 L-3 2 Z" fill={c} stroke={INK} strokeWidth={0.6} />
-      </g>
-    </>
-  ),
-  sinkhole: (c) => (
-    <>
-      <path d="M2 9 H8 Q12 20 16 9 H22 V22 H2 Z" fill="#6a4a30" />
-      <path d="M12 3 V11" stroke={c} strokeWidth={1.6} />
-      <path d="M10 10 L12 14 L14 10 Z" fill={c} stroke={INK} strokeWidth={0.6} />
-    </>
-  ),
-  lance: (c) => (
-    <>
-      <line x1={3} y1={20} x2={21} y2={4} stroke={c} strokeWidth={4} opacity={0.35} strokeLinecap="round" />
-      <line x1={3} y1={20} x2={21} y2={4} stroke={c} strokeWidth={1.8} strokeLinecap="round" />
-      <line x1={3} y1={20} x2={21} y2={4} stroke="#fff" strokeWidth={0.6} strokeLinecap="round" />
-    </>
-  ),
-  prism: (c) => (
-    <>
-      <path d="M2 20 H22" stroke="#7a6a50" strokeWidth={1} />
-      <polyline points="3,5 9,19 15,6 21,15" stroke={c} strokeWidth={1.6} fill="none" strokeLinejoin="round" />
-      <polyline points="3,5 9,19 15,6 21,15" stroke="#fff" strokeWidth={0.5} fill="none" strokeLinejoin="round" />
-    </>
-  ),
-  napalm: (c) => (
-    <>
-      <path d="M2 18 Q12 14 22 18 V22 H2 Z" fill="#5a3a24" />
-      {[6, 12, 18].map((x, i) => (
-        <path key={i} d={`M${x - 2.4} 17 Q${x - 2} ${11 - i} ${x} ${8 + (i % 2) * 2} Q${x + 2} ${12 - i} ${x + 2.4} 17 Z`} fill={i === 1 ? "#ffd34d" : c} stroke={INK} strokeWidth={0.5} />
-      ))}
-    </>
-  ),
-  acid: (c) => (
-    <>
-      <path d="M5 9 Q5 4 10 4.5 Q12 2 15.5 4 Q20 4 19.5 8.5 Q19.5 11 16 11 H8 Q5 11 5 9 Z" fill="#3d5a1c" stroke={INK} strokeWidth={0.6} />
-      {[7, 11, 15, 18].map((x, i) => (
-        <path key={i} d={`M${x} ${13 + (i % 2) * 2} q-1 2 0 3 q1 -1 0 -3 Z`} fill={c} stroke={c} strokeWidth={1} />
-      ))}
-    </>
-  ),
-  thunder: (c) => (
-    <>
-      <path d="M4 8 Q4 3 9 3.5 Q11 1.5 14.5 3 Q20 3 20 7.5 Q20 10 16 10 H8 Q4 10 4 8 Z" fill="#2a3247" stroke={INK} strokeWidth={0.6} />
-      <path d="M13 9 L9.5 15 H12.5 L10 21 L16 13 H13 L15 9 Z" fill={c} stroke={INK} strokeWidth={0.6} strokeLinejoin="round" />
-    </>
-  ),
-  airraid: (c) => (
-    <>
-      <g transform="translate(12 7)">
-        <ellipse rx={8} ry={1.6} fill={c} stroke={INK} strokeWidth={0.6} />
-        <path d="M-2 0 L-5 4 H-2 L1 0 Z" fill={c} stroke={INK} strokeWidth={0.5} />
-        <path d="M-7 -1 L-8.5 -3.5 H-6.5 L-5 -1" fill={c} />
-      </g>
-      {[8, 12, 16].map((x, i) => (
-        <ellipse key={i} cx={x} cy={13 + i * 2.6} rx={1} ry={1.8} fill={INK} stroke={c} strokeWidth={0.5} />
-      ))}
-    </>
-  ),
-  meteors: (c) => (
-    <>
-      {[[16, 6, 2.6], [10, 12, 2], [18, 15, 1.6]].map(([x, y, r], i) => (
-        <g key={i}>
-          <path d={`M${x} ${y} L${x - 7} ${y - 6}`} stroke={c} strokeWidth={r} strokeLinecap="round" opacity={0.45} />
-          <circle cx={x} cy={y} r={r} fill="#5a4436" stroke={c} strokeWidth={0.8} />
-        </g>
-      ))}
-      <path d="M2 21 H22" stroke="#7a6a50" strokeWidth={1} />
-    </>
-  ),
-  skyspear: (c) => (
-    <>
-      <rect x={10} y={2} width={4} height={15} fill={c} opacity={0.4} />
-      <rect x={11.3} y={2} width={1.4} height={15} fill="#fff" />
-      <ellipse cx={12} cy={18.5} rx={7} ry={2} fill="none" stroke={c} strokeWidth={1} />
-      <ellipse cx={12} cy={18.5} rx={3.5} ry={1} fill="none" stroke={c} strokeWidth={0.8} />
-    </>
-  ),
-  singularity: (c) => (
-    <>
-      <ellipse cx={12} cy={12} rx={10} ry={3.4} fill="none" stroke={c} strokeWidth={1.2} transform="rotate(-18 12 12)" />
-      <circle cx={12} cy={12} r={4.6} fill="#06020c" stroke={c} strokeWidth={1} />
-      <ellipse cx={12} cy={12} rx={7} ry={2} fill="none" stroke="#ffd6f5" strokeWidth={0.6} transform="rotate(-18 12 12)" strokeDasharray="4 3" />
-    </>
-  ),
-  tremor: (c) => (
-    <>
-      <polyline points="2,12 5,12 7,6 9,18 11,4 13,20 15,8 17,15 19,12 22,12" stroke={c} strokeWidth={1.5} fill="none" strokeLinejoin="round" />
-    </>
-  ),
-  volcano: (c) => (
-    <>
-      <path d="M2 21 L9 10 H15 L22 21 Z" fill="#4a2a20" stroke={INK} strokeWidth={0.6} />
-      <path d="M9 10 Q12 12 15 10" fill={c} />
-      {[[8, 5], [12, 3], [16, 6]].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={1.4} fill={c} />
-      ))}
-      <path d="M11 13 L10 17 M13 13 L14 16" stroke={c} strokeWidth={0.9} />
-    </>
-  ),
-  mudpie: (c) => (
-    <>
-      <path d="M2 20 Q12 10 22 20 Z" fill={c} stroke={INK} strokeWidth={0.6} />
-      <circle cx={12} cy={7} r={4} fill={c} stroke={INK} strokeWidth={0.7} />
-      <circle cx={13.4} cy={8} r={1} fill={INK} opacity={0.4} />
-      <circle cx={10.5} cy={6} r={0.7} fill={INK} opacity={0.4} />
-    </>
-  ),
-  rampart: (c) => (
-    <>
-      <path d="M3 21 H21" stroke="#7a6a50" strokeWidth={1} />
-      <path d="M7 21 V8 H9 V6 H11 V8 H13 V6 H15 V8 H17 V21 Z" fill={c} stroke={INK} strokeWidth={0.7} />
-      <path d="M7 12 H17 M7 16 H17 M12 8 V12 M10 12 V16 M14 12 V16 M12 16 V21" stroke={INK} strokeWidth={0.5} opacity={0.5} />
-    </>
-  ),
-  blink: (c) => (
-    <>
-      <path d="M12 3 L16 12 L12 21 L8 12 Z" fill="none" stroke={c} strokeWidth={1.3} />
-      <path d="M12 7 L14 12 L12 17 L10 12 Z" fill={c} />
-      <circle cx={4} cy={6} r={0.9} fill={c} />
-      <circle cx={20} cy={17} r={0.9} fill={c} />
-      <circle cx={19} cy={5} r={0.6} fill={c} />
-    </>
-  ),
-  seeker: (c) => (
-    <>
-      <circle cx={17} cy={7} r={4} fill="none" stroke={c} strokeWidth={0.8} />
-      <path d="M17 2 V4 M17 10 V12 M12 7 H14 M20 7 H22" stroke={c} strokeWidth={0.8} />
-      <path d="M3 20 Q5 11 13 10" stroke="#ddd" strokeWidth={0.8} fill="none" strokeDasharray="1.4 1.2" />
-      <g transform="translate(14 9) rotate(-28)">
-        <rect x={-4} y={-1.3} width={6} height={2.6} fill="#eee" stroke={INK} strokeWidth={0.5} />
-        <path d="M2 -1.3 L4.5 0 L2 1.3 Z" fill={c} />
-      </g>
-    </>
-  ),
-  boomerang: (c) => (
-    <>
-      <path d="M5 18 Q8 6 18 5" stroke={c} strokeWidth={3.4} fill="none" strokeLinecap="round" />
-      <path d="M5 18 Q8 6 18 5" stroke={INK} strokeWidth={0.6} fill="none" strokeDasharray="2 2" opacity={0.5} />
-      <path d="M20 12 Q21 18 15 20" stroke={c} strokeWidth={0.8} fill="none" strokeDasharray="1.2 1.2" />
-    </>
-  ),
-  buzzsaw: (c) => (
-    <>
-      <polygon
-        points={Array.from({ length: 24 }, (_, i) => {
-          const a = (i / 24) * Math.PI * 2;
-          const r = i % 2 ? 6.6 : 8.6;
-          return `${(12 + Math.cos(a) * r).toFixed(2)},${(11 + Math.sin(a) * r).toFixed(2)}`;
-        }).join(" ")}
-        fill={c}
-        stroke={INK}
-        strokeWidth={0.6}
-      />
-      <circle cx={12} cy={11} r={2.6} fill={INK} opacity={0.6} />
-      <circle cx={12} cy={11} r={1} fill="#e8b23a" />
-    </>
-  ),
-  fireworks: (c) => (
-    <>
-      {Array.from({ length: 10 }, (_, i) => {
-        const a = (i / 10) * Math.PI * 2;
-        const col = ["#ff6bd6", "#62f0ff", "#ffd34d", "#8cff6b"][i % 4];
-        return (
-          <g key={i}>
-            <line x1={12 + Math.cos(a) * 3} y1={10 + Math.sin(a) * 3} x2={12 + Math.cos(a) * 8} y2={10 + Math.sin(a) * 8} stroke={col} strokeWidth={1} strokeLinecap="round" />
-            <circle cx={12 + Math.cos(a) * 9} cy={10 + Math.sin(a) * 9} r={0.9} fill={col} />
-          </g>
-        );
-      })}
-      <circle cx={12} cy={10} r={1.6} fill={c} />
-      <path d="M12 21 V16" stroke={c} strokeWidth={0.8} strokeDasharray="1 1" />
-    </>
-  ),
-  gatling: (c) => (
-    <>
-      {[0, 1, 2].map((i) => (
-        <rect key={i} x={3} y={8 + i * 3} width={11} height={2} rx={1} fill="#7d858e" stroke={INK} strokeWidth={0.5} />
-      ))}
-      <rect x={2} y={7} width={3} height={10} rx={1} fill="#4a4f55" />
-      {[16, 19, 22].map((x, i) => (
-        <line key={i} x1={x - 2} y1={9 + i * 3} x2={x} y2={9 + i * 3} stroke={c} strokeWidth={1.6} strokeLinecap="round" />
+      {[[4.5, 17], [8, 12], [12, 8], [16.5, 5.5], [20, 4]].map(([x, y], i) => (
+        <g key={i}>{dot(c, x, y, 1.9)}</g>
       ))}
     </>
   ),
   jackhammer: (c) => (
     <>
-      <path d="M2 20 Q12 24 22 20 V22 H2 Z" fill="#6a4a30" />
-      <rect x={9} y={4} width={6} height={10} fill="#7d858e" stroke={INK} strokeWidth={0.6} />
-      <rect x={9} y={7} width={6} height={2.4} fill={c} />
-      <path d="M9 14 L12 18 L15 14 Z" fill="#3b4047" />
-      <path d="M5 16 Q4 14 5 12 M19 16 Q20 14 19 12" stroke={c} strokeWidth={0.8} fill="none" />
+      {ground()}
+      {arc("M12 17 Q12 3 12 17", c, "1 1")}
+      {[4, 8, 12].map((y, i) => (
+        <path key={i} d={`M9.5 ${y} H14.5`} stroke={c} strokeWidth={0.9} opacity={0.6 - i * 0.15} />
+      ))}
+      {rings(12, 17, 3.2)}
+      {dot(c, 12, 6, 2.2)}
     </>
   ),
-  twister: (c) => (
+  heatseeker: (c) => (
     <>
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <ellipse key={i} cx={12 + Math.sin(i) * 1.2} cy={4 + i * 3} rx={9 - i * 1.4} ry={1.4} fill="none" stroke={c} strokeWidth={1.1} />
+      {ground()}
+      {tank(17, 17)}
+      {arc("M3 13 Q8 3 13 7 Q16 10 16.5 14", c)}
+      {dot(c, 16.4, 13.2, 2.2)}
+      <path d="M14 11 L15 9 M18.8 11 L18 9" stroke="#ff8a65" strokeWidth={0.7} opacity={0.8} />
+    </>
+  ),
+  tracer: (c) => (
+    <>
+      {ground()}
+      {[0, 1, 2].map((i) => (
+        <g key={i}>{arc(`M3 17 Q${10 + i * 2} ${2 + i * 2} ${16 + i * 2.5} 17`, c, "0.6 1.4")}</g>
       ))}
-      <path d="M8 21 H16" stroke={c} strokeWidth={0.8} opacity={0.5} />
+      <text x={20.5} y={13} fontSize={4.5} fontWeight={700} fill={c} textAnchor="middle">
+        +1
+      </text>
+    </>
+  ),
+  piledriver: (c) => (
+    <>
+      {ground("M2 9 H22 V22 H2 Z")}
+      <path d="M10 9 V20 H14 V9 Z" fill={INK} opacity={0.75} />
+      {[10, 14, 18].map((y, i) => (
+        <g key={i}>{rings(12, y, 2.6 - i * 0.3, ["#fff176", "#ff9800"])}</g>
+      ))}
+      {dot(c, 12, 5, 2)}
+    </>
+  ),
+  dirtmover: (c) => (
+    <>
+      {ground("M2 9 H22 V22 H2 Z")}
+      <path d="M6 9 L18 19 L20 17 L9 8 Z" fill={INK} opacity={0.75} />
+      <path d="M13 13 L18.5 17.5 M18.5 17.5 L18.4 14.8 M18.5 17.5 L15.8 17.6" stroke={c} strokeWidth={1.1} strokeLinecap="round" fill="none" />
+      {dot(c, 6, 6, 1.8)}
+    </>
+  ),
+  crazyivan: (c) => (
+    <>
+      {dot(c, 12, 12, 2.6)}
+      {[
+        "M12 12 Q6 8 4 12",
+        "M12 12 Q16 4 20 7",
+        "M12 12 Q18 16 20 20",
+        "M12 12 Q9 18 5 19",
+        "M12 12 Q12 6 9 3",
+      ].map((d, i) => (
+        <path key={i} d={d} fill="none" stroke={c} strokeWidth={0.9} strokeLinecap="round" />
+      ))}
+      {[[4, 12], [20, 7], [20, 20], [5, 19], [9, 3]].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={1.2} fill={c} />
+      ))}
+    </>
+  ),
+  spider: (c) => (
+    <>
+      {Array.from({ length: 8 }, (_, i) => {
+        const a = (i / 8) * Math.PI * 2;
+        return <line key={i} x1={12} y1={12} x2={12 + Math.cos(a) * 10} y2={12 + Math.sin(a) * 10} stroke={c} strokeWidth={0.5} />;
+      })}
+      {[3.5, 6.5, 9.5].map((r, k) => (
+        <polygon
+          key={k}
+          points={Array.from({ length: 8 }, (_, i) => {
+            const a = (i / 8) * Math.PI * 2;
+            return `${(12 + Math.cos(a) * r).toFixed(2)},${(12 + Math.sin(a) * r).toFixed(2)}`;
+          }).join(" ")}
+          fill="none"
+          stroke={c}
+          strokeWidth={0.5}
+        />
+      ))}
+      <circle cx={12} cy={12} r={2} fill={INK} stroke={c} strokeWidth={0.5} />
+    </>
+  ),
+  sniper: (c) => (
+    <>
+      <circle cx={12} cy={12} r={8} fill="none" stroke={c} strokeWidth={1.1} />
+      <circle cx={12} cy={12} r={1.2} fill="#ff5252" />
+      <path d="M12 2 V8 M12 16 V22 M2 12 H8 M16 12 H22" stroke={c} strokeWidth={1.1} />
+    </>
+  ),
+  magicwall: (c) => (
+    <>
+      {ground()}
+      <rect x={10} y={3} width={4} height={14} fill={GROUND} stroke={INK} strokeWidth={0.5} />
+      <path d="M10 3 H14" stroke={c} strokeWidth={1} />
+      {[[6, 6], [18, 8], [16, 3]].map(([x, y], i) => (
+        <path key={i} d={`M${x} ${y - 1.4} V${y + 1.4} M${x - 1.4} ${y} H${x + 1.4}`} stroke={c} strokeWidth={0.7} />
+      ))}
+    </>
+  ),
+  dirtslinger: (c) => (
+    <>
+      {ground("M2 17 L9 17 L12 21 L15 17 L22 17 V22 H2 Z")}
+      {[[6, 10], [4, 7], [8, 6], [18, 10], [20, 7], [16, 6]].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={1.3} fill={GROUND} stroke={c} strokeWidth={0.4} />
+      ))}
+      <path d="M12 16 L6 9 M12 16 L18 9" stroke={c} strokeWidth={0.7} strokeDasharray="1 1" />
+    </>
+  ),
+  zapper: (c) => (
+    <>
+      {ground()}
+      {tank(17, 17)}
+      {dot(c, 6, 5, 2.2)}
+      <path d="M7.5 6.5 L11 9 L9.5 10.5 L15.5 14.5" fill="none" stroke={c} strokeWidth={1.2} strokeLinejoin="round" />
+    </>
+  ),
+  napalm: (c) => (
+    <>
+      {ground()}
+      {[6, 12, 18].map((x, i) => (
+        <path key={i} d={`M${x - 2.4} 17 Q${x - 2} ${11 - i} ${x} ${8 + (i % 2) * 2} Q${x + 2} ${12 - i} ${x + 2.4} 17 Z`} fill={i === 1 ? "#ffd54f" : c} stroke={INK} strokeWidth={0.4} />
+      ))}
+    </>
+  ),
+  hailstorm: (c) => (
+    <>
+      {ground()}
+      {Array.from({ length: 16 }, (_, i) => {
+        const x = 3 + ((i * 37) % 18);
+        const y = 3 + ((i * 53) % 13);
+        return <rect key={i} x={x} y={y} width={1.4} height={1.4} fill={c} transform={`rotate(45 ${x + 0.7} ${y + 0.7})`} />;
+      })}
+    </>
+  ),
+  groundhog: (c) => (
+    <>
+      <path d="M2 18 Q12 4 22 18 V22 H2 Z" fill={GROUND} />
+      <path d="M4 17 L19 14" stroke={c} strokeWidth={1} strokeDasharray="1.2 1" />
+      {rings(19.5, 14, 3)}
+    </>
+  ),
+  worm: (c) => (
+    <>
+      {ground("M2 8 H22 V22 H2 Z")}
+      <path d="M4 18 Q7 15 9 18 T14 15 T17 11 T19 8" fill="none" stroke={c} strokeWidth={1.6} strokeLinecap="round" />
+      {rings(19, 7, 2.8)}
+    </>
+  ),
+  homingworm: (c) => (
+    <>
+      {ground("M2 9 H22 V22 H2 Z")}
+      {tank(17, 9)}
+      <path d="M3 16 H16.5 V10" fill="none" stroke={c} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 12 L16.5 10 L18 12" fill="none" stroke={c} strokeWidth={1} />
+    </>
+  ),
+  skipper: (c) => (
+    <>
+      {ground()}
+      {arc("M2 16 Q5 6 8 16 Q10.5 10 13 16 Q14.8 12 16.5 16 Q17.8 14 19 16", c, "0")}
+      {rings(20.5, 16, 2.6)}
+    </>
+  ),
+  chainreaction: (c) => (
+    <>
+      {ground()}
+      {[[6, 15, 2.6], [11, 12, 3.4], [16, 15, 2.8], [19, 10, 2], [8, 8, 2]].map(([x, y, r], i) => (
+        <g key={i}>{rings(x, y, r, i % 2 ? ["#fff176", c, "#e53935"] : ["#ffffff", "#ffb74d", c])}</g>
+      ))}
+    </>
+  ),
+  pineapple: (c) => (
+    <>
+      <ellipse cx={12} cy={14} rx={5} ry={6.2} fill={c} stroke={INK} strokeWidth={0.6} />
+      <path d="M8 11 L16 17 M8 15 L13 19 M10 9 L16 13 M16 11 L8 17 M16 15 L11 19 M14 9 L8 13" stroke={INK} strokeWidth={0.45} opacity={0.6} />
+      <path d="M12 8 L9.5 3.5 M12 8 L12 3 M12 8 L14.5 3.5" stroke="#43a047" strokeWidth={1.3} strokeLinecap="round" />
+    </>
+  ),
+  firecracker: (c) => (
+    <>
+      {ground()}
+      {[3.5, 7.5, 12, 16.5, 20.5].map((x, i) => (
+        <g key={i}>{burst(i === 2 ? "#ffea00" : c, x, 14.5, 2.6 - Math.abs(i - 2) * 0.35, 6)}</g>
+      ))}
+    </>
+  ),
+  homingmissile: (c) => (
+    <>
+      {ground()}
+      {tank(12, 17)}
+      {arc("M2 6 H12", c)}
+      <g transform="translate(12 9) rotate(90)">
+        <rect x={-3} y={-1.2} width={5} height={2.4} fill="#eceff1" stroke={INK} strokeWidth={0.4} />
+        <path d="M2 -1.2 L4 0 L2 1.2 Z" fill={c} />
+      </g>
+    </>
+  ),
+  dirtball: (c) => (
+    <>
+      {ground("M2 18 Q12 12 22 18 V22 H2 Z")}
+      <circle cx={12} cy={8} r={4.2} fill={GROUND} stroke={c} strokeWidth={0.7} />
+      <circle cx={13.4} cy={9} r={0.9} fill={INK} opacity={0.4} />
+      <circle cx={10.6} cy={7} r={0.7} fill={INK} opacity={0.4} />
+    </>
+  ),
+  tommygun: (c) => (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <path key={i} d={`M${3 + i * 4} ${16 - i * 2.4} l3 -1.8`} stroke={c} strokeWidth={1.6} strokeLinecap="round" />
+      ))}
+    </>
+  ),
+  mountainmover: (c) => (
+    <>
+      <path d="M2 18 L6 9 L9 13 Q12 21 15 13 L18 9 L22 18 V22 H2 Z" fill={GROUND} />
+      <path d="M9 13 Q12 21 15 13" fill="none" stroke={c} strokeWidth={0.9} strokeDasharray="1.2 1" />
+      <path d="M12 4 V10 M9.5 7.5 L12 10 L14.5 7.5" fill="none" stroke={c} strokeWidth={1.1} strokeLinecap="round" />
+    </>
+  ),
+  scattershot: (c) => (
+    <>
+      {ground()}
+      {rings(12, 16.5, 2.6)}
+      {[50, 70, 90, 110, 130].map((deg, i) => {
+        const a = (deg * Math.PI) / 180;
+        return <g key={i}>{dot(c, 12 + Math.cos(a) * 9, 16 - Math.sin(a) * 10, 1.5)}</g>;
+      })}
+    </>
+  ),
+  cruiser: (c) => (
+    <>
+      <path d="M2 17 Q7 12 12 16 T22 14 V22 H2 Z" fill={GROUND} />
+      {arc("M3 14.5 Q7 10 11 13.5", c, "1 1")}
+      {dot(c, 13.5, 14.2, 2.2)}
+      <path d="M16 12 L19 12 M16.5 14 L19.5 14" stroke={c} strokeWidth={0.7} opacity={0.6} />
     </>
   ),
 };

@@ -209,7 +209,7 @@ function playGame(n: number, seed: number): TanksState {
       const other = s.players.find((q) => q.id !== p.id && !q.left);
       if (other) {
         try {
-          applyTanksMove(s, other.id, { type: "fire", angle: 45, power: 50, weapon: "shell" }, now, rng);
+          applyTanksMove(s, other.id, { type: "fire", angle: 45, power: 50, weapon: "single" }, now, rng);
           fail("out-of-turn move accepted");
         } catch (e) {
           if (!(e instanceof MoveError)) throw e;
@@ -225,7 +225,8 @@ function playGame(n: number, seed: number): TanksState {
     }
     let mv: TanksMove;
     if (s.phase === "draft") {
-      mv = { type: "pick", weapon: rng() < 0.5 ? autoDraft(s, p, rng) : pick(rng, s.pool) };
+      const r = rng();
+      mv = r < 0.05 ? { type: "autodraft" } : { type: "pick", weapon: r < 0.3 ? "random" : r < 0.6 ? autoDraft(s, p, rng) : pick(rng, s.pool) };
     } else {
       const r = rng();
       if (r < 0.15 && p.moves > 0) mv = { type: "drive", dir: rng() < 0.5 ? -1 : 1 };
@@ -277,38 +278,93 @@ function cases() {
     const g = flat();
     const tanks = [{ seat: 0, x: 300, y: 200 }, { seat: 1, x: 600, y: 200 }];
     // fire nearly straight down onto the neighbour: put the shooter right next to them
-    const res = simulateShot({ ground: g, tanks: [{ seat: 0, x: 560, y: 200 }, { seat: 1, x: 600, y: 200 }], seats: 2, shooter: 0, weapon: "shell", angle: 75, power: 22, wind: 0, gravity: 1, rng });
+    const res = simulateShot({ ground: g, tanks: [{ seat: 0, x: 560, y: 200 }, { seat: 1, x: 600, y: 200 }], seats: 2, shooter: 0, weapon: "single", angle: 75, power: 22, wind: 0, gravity: 1, rng });
     if (res.delta[0] <= 0 || res.taken[1] <= 0) fail(`case: lob onto the neighbour scored ${res.delta[0]}`);
-    const self = simulateShot({ ground: g, tanks, seats: 2, shooter: 0, weapon: "shell", angle: 90, power: 30, wind: 0, gravity: 1, rng });
+    const self = simulateShot({ ground: g, tanks, seats: 2, shooter: 0, weapon: "single", angle: 90, power: 30, wind: 0, gravity: 1, rng });
     if (self.taken[0] <= 0 || self.delta[0] !== -self.taken[0]) fail(`case: straight up should come down on yourself (${self.taken[0]}, ${self.delta[0]})`);
   }
   // straight down from a ledge hits the ground under you
   {
-    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 300, y: 200 }, { seat: 1, x: 900, y: 200 }], seats: 2, shooter: 0, weapon: "shell", angle: 270, power: 40, wind: 0, gravity: 1, rng });
+    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 300, y: 200 }, { seat: 1, x: 900, y: 200 }], seats: 2, shooter: 0, weapon: "single", angle: 270, power: 40, wind: 0, gravity: 1, rng });
     if (res.taken[0] <= 0) fail("case: firing straight down should hurt the shooter");
   }
-  // utility weapons never score
-  for (const w of ["mudpie", "rampart", "blink"] as WeaponId[]) {
-    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 200, y: 200 }, { seat: 1, x: 900, y: 200 }], seats: 2, shooter: 0, weapon: w, angle: 45, power: 70, wind: 0, gravity: 1, rng });
+  const shot = (weapon: WeaponId, angle: number, power: number, ground = flat(), tanks = [{ seat: 0, x: 200, y: 200 }, { seat: 1, x: 900, y: 200 }], r = rng) =>
+    simulateShot({ ground, tanks, seats: 2, shooter: 0, weapon, angle, power, wind: 0, gravity: 1, rng: r });
+  const lob = [{ seat: 0, x: 560, y: 200 }, { seat: 1, x: 600, y: 200 }];
+  // the dirt and utility weapons never score — not even dropped right on a tank
+  for (const w of ["tracer", "dirtmover", "magicwall", "dirtslinger", "dirtball", "mountainmover"] as WeaponId[]) {
+    const res = shot(w, 75, 22, flat(), lob);
     if (res.dealt || res.taken.some((t) => t)) fail(`case: ${w} did damage`);
   }
-  // blink moves the shooter
+  // no fall damage: a Mountain Mover under a tank drops it for free
   {
-    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 200, y: 200 }, { seat: 1, x: 1000, y: 200 }], seats: 2, shooter: 0, weapon: "blink", angle: 45, power: 60, wind: 0, gravity: 1, rng });
-    if (res.tanks[0].x < 400) fail(`case: blink left the tank at ${res.tanks[0].x}`);
+    const res = shot("mountainmover", 75, 22, flat(), lob);
+    if (!res.rec.events.some((e) => e.k === "tank" && e.seat === 1 && e.how === "fall")) fail("case: mountain mover didn't drop the tank");
+    if (res.taken[1] !== 0) fail("case: falling hurt");
   }
-  // mud pie raises the ground, a rampart builds a wall
+  // spreads fire the right number of bullets
+  if (shot("three", 45, 70).rec.tracks.length !== 3) fail("case: 3 Shot");
+  if (shot("five", 45, 70).rec.tracks.length !== 5) fail("case: 5 Shot");
+  if (shot("tommygun", 45, 70).rec.tracks.length !== 15) fail("case: Tommy Gun");
+  // the tracer marks five landings, labelled by angle change
   {
-    const res = simulateShot({ ground: flat(), tanks: [{ seat: 0, x: 200, y: 200 }, { seat: 1, x: 1000, y: 200 }], seats: 2, shooter: 0, weapon: "rampart", angle: 45, power: 60, wind: 0, gravity: 1, rng });
-    if (Math.max(...res.ground) < 330) fail("case: rampart built nothing");
+    const marks = shot("tracer", 45, 70).rec.events.filter((e) => e.k === "mark");
+    const labels = marks.map((m) => (m.k === "mark" ? m.label : "")).sort();
+    if (labels.join(",") !== ["+1", "+2", "-1", "-2", "0"].sort().join(",")) fail(`case: tracer marks ${labels}`);
   }
-  // the lance cuts straight through a hill
+  // the jackhammer goes off six times: the landing and five bounces straight up
+  {
+    const booms = shot("jackhammer", 45, 70).rec.events.filter((e) => e.k === "boom").length;
+    if (booms !== 6) fail(`case: jackhammer went off ${booms} times`);
+  }
+  // pile driver digs a deep, narrow hole
+  {
+    const res = shot("piledriver", 45, 70);
+    if (Math.min(...res.ground) > 200 - 70) fail(`case: pile driver hole only ${200 - Math.min(...res.ground)} deep`);
+  }
+  // magic wall and dirtball build
+  if (Math.max(...shot("magicwall", 45, 60).ground) < 330) fail("case: magic wall built nothing");
+  if (Math.max(...shot("dirtball", 45, 60).ground) < 250) fail("case: dirtball built nothing");
+  // the sniper rifle: no blast, big points, and the tank goes flying
+  {
+    const res = shot("sniper", 75, 18, flat(), lob);
+    const hit = res.taken[1];
+    if (hit && (hit !== 60 || Math.abs(res.tanks[1].x - 600) < 30)) fail(`case: sniper hit for ${hit}, tank at ${res.tanks[1].x}`);
+    // across the field, some power lands it
+    let any = false;
+    for (let p = 30; p <= 100 && !any; p++) any = shot("sniper", 30, p).taken[1] === 60;
+    if (!any) fail("case: sniper never connects");
+  }
+  // homing missile: some power that would overshoot still drops onto the tank
+  {
+    let hits = 0;
+    for (let p = 40; p <= 100; p += 2) if (shot("homingmissile", 45, p).taken[1] > 0) hits++;
+    let plain = 0;
+    for (let p = 40; p <= 100; p += 2) if (shot("single", 45, p).taken[1] > 0) plain++;
+    if (hits <= plain) fail(`case: homing missile (${hits}) no better than a single shot (${plain})`);
+  }
+  // ground hog goes through a hill and comes out the far side
   {
     const g = flat(120);
-    for (let i = 250; i < 300; i++) g[i] = 300;
-    const res = simulateShot({ ground: g, tanks: [{ seat: 0, x: 200, y: 120 }, { seat: 1, x: 1000, y: 120 }], seats: 2, shooter: 0, weapon: "lance", angle: 2, power: 100, wind: 0, gravity: 1, rng });
-    if (!res.rec.events.some((e) => e.k === "op" && e.op.k === "line")) fail("case: lance cut nothing");
+    for (let i = 230; i < 300; i++) g[i] = 330;
+    const res = shot("groundhog", 20, 60, g, [{ seat: 0, x: 200, y: 120 }, { seat: 1, x: 1000, y: 120 }]);
+    const booms = res.rec.events.filter((e) => e.k === "boom" && e.fx === "fire");
+    if (!booms.some((b) => b.k === "boom" && b.x >= 598)) fail(`case: ground hog didn't emerge past the hill (${booms.map((b) => (b.k === "boom" ? b.x : 0))})`);
   }
+  // the homing worm surfaces under the tank
+  {
+    let hits = 0;
+    for (let p = 40; p <= 80; p += 4) if (shot("homingworm", 40, p).taken[1] >= 30) hits++;
+    if (!hits) fail("case: homing worm never found the tank");
+  }
+  // zapper zaps from the air
+  {
+    let zaps = 0;
+    for (let p = 40; p <= 100; p += 3) if (shot("zapper", 45, p).rec.events.some((e) => e.k === "beam" && e.fx === "zap")) zaps++;
+    if (!zaps) fail("case: zapper never zapped");
+  }
+  // spider spins silk at the nearest tank
+  if (!shot("spider", 75, 22, flat(), lob).rec.events.some((e) => e.k === "beam" && e.fx === "web")) fail("case: spider spun no web");
   // driving stops at cliffs and never rams another tank
   {
     const g = flat(100);
@@ -318,10 +374,19 @@ function cases() {
     const blocked = driveTo(flat(), 300, 1, [340]);
     if (blocked > 311) fail(`case: drove into a tank (${blocked})`);
   }
-  // a sinkhole under a tank drops it and the fall hurts
+  // random picks and auto-drafting
   {
-    const res = simulateShot({ ground: flat(300), tanks: [{ seat: 0, x: 200, y: 300 }, { seat: 1, x: 640, y: 300 }], seats: 2, shooter: 0, weapon: "sinkhole", angle: 45, power: 0, wind: 0, gravity: 1, rng: () => 0.5 });
-    void res;
+    let now = 0;
+    const s = initTanks(players(2), now, rng);
+    const other = s.players.find((q) => q.id !== s.turn)!;
+    applyTanksMove(s, other.id, { type: "autodraft" }, ++now, rng); // out of turn is fine
+    let guard = 0;
+    while (s.phase === "draft" && guard++ < 50) {
+      const p = s.players.find((q) => q.id === s.turn)!;
+      if (p.id === other.id) fail("case: an auto-drafter was asked to pick");
+      applyTanksMove(s, p.id, { type: "pick", weapon: "random" }, ++now, rng);
+    }
+    if (s.phase !== "aim" || s.players.some((p) => p.arsenal.length !== ARSENAL[2])) fail("case: random draft didn't fill the arsenals");
   }
   // a whole game: draft fills arsenals, a tie is a draw
   {

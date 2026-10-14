@@ -1,8 +1,9 @@
 "use client";
 
-/* The draft — its own screen, before the battlefield appears. A pool of
-   weapons is laid out; the tanks take turns, snake order, claiming one at a
-   time until every arsenal is full. */
+/* Weapon selection — its own screen, before the battlefield appears. A pool
+   of Pocket Tanks weapons is laid out; the tanks take turns, snake order,
+   claiming one at a time until every arsenal is full. As in Pocket Tanks you
+   can hit "Random" for any pick, or hand the rest of your picks to chance. */
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ARSENAL, PICK_MS, type TanksView } from "@/lib/games/tanks/types";
@@ -46,7 +47,24 @@ function Card({ id, canPick, onPick }: { id: WeaponId; canPick: boolean; onPick:
   );
 }
 
-export function DraftScreen({ v, youId, canPick, onPick, nowEst }: { v: TanksView; youId: string; canPick: boolean; onPick: (w: WeaponId) => void; nowEst: number }) {
+export function DraftScreen({
+  v,
+  youId,
+  canPick,
+  onPick,
+  onAuto,
+  seated,
+  nowEst,
+}: {
+  v: TanksView;
+  youId: string;
+  canPick: boolean;
+  onPick: (w: WeaponId | "random") => void;
+  onAuto: () => void;
+  seated: boolean;
+  nowEst: number;
+}) {
+  const me = v.players.find((p) => p.id === youId) ?? null;
   const n = v.players.length;
   const k = ARSENAL[n] ?? 6;
   const picker = v.players.find((p) => p.id === v.turn) ?? null;
@@ -72,6 +90,44 @@ export function DraftScreen({ v, youId, canPick, onPick, nowEst }: { v: TanksVie
         <div className="mx-auto mt-2 h-[3px] w-40 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
           <div className="h-full rounded-full" style={{ width: `${frac * 100}%`, background: accent, transition: "width 200ms linear" }} />
         </div>
+
+        {/* chance */}
+        {seated && me && (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {me.autoDraft ? (
+              <span className="rounded-lg px-3 py-2 text-[12.5px]" style={{ color: TEXT_2, border: `1px dashed ${LINE}` }}>
+                Your picks are being made at random
+              </span>
+            ) : (
+              <>
+                <motion.button
+                  type="button"
+                  disabled={!canPick}
+                  onClick={() => onPick("random")}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex h-10 items-center gap-2 rounded-lg px-4 text-[13px] font-semibold transition-colors enabled:hover:bg-white/[0.08] disabled:opacity-35"
+                  style={{ color: TEXT, border: `1px solid ${LINE}`, background: SURFACE_2 }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden>
+                    <rect x={1.5} y={1.5} width={13} height={13} rx={3} fill="none" stroke="currentColor" strokeWidth={1.3} />
+                    {[[5, 5], [11, 5], [8, 8], [5, 11], [11, 11]].map(([x, y]) => (
+                      <circle key={`${x}${y}`} cx={x} cy={y} r={1.1} fill="currentColor" />
+                    ))}
+                  </svg>
+                  Random
+                </motion.button>
+                <button
+                  type="button"
+                  onClick={onAuto}
+                  className="h-10 rounded-lg px-4 text-[13px] font-medium transition-colors hover:bg-white/[0.06]"
+                  style={{ color: TEXT_2, border: `1px solid ${LINE}` }}
+                >
+                  Pick the rest at random
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* each player's rack */}

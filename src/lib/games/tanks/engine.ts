@@ -4,7 +4,6 @@ import { driveTo, generateGround, spawnXs, tankGround, W } from "./terrain";
 import {
   ARSENAL,
   LOG_CAP,
-  MAX_WIND,
   MOVES,
   PICK_MS,
   POOL_SPARE,
@@ -56,9 +55,9 @@ function log(s: TanksState, kind: TanksLogKind, e: Partial<TanksLogEntry> = {}) 
 
 const who = (p: TanksPlayer) => ({ actor: p.name, player: p.id, seat: p.seat });
 
-function nextWind(s: TanksState, rng: Rng): number {
-  if (s.biome === "lunar") return 0;
-  return clamp(Math.round(s.wind * 0.35 + (rng() * 2 - 1) * MAX_WIND * 0.85), -MAX_WIND, MAX_WIND);
+/** Pocket Tanks has no wind: the only thing between you and the target is gravity. */
+function nextWind(): number {
+  return 0;
 }
 
 /** Shots still to come, plus those already fired. */
@@ -95,7 +94,7 @@ function passTurn(s: TanksState, fromSeat: number, rng: Rng, extraMs: number) {
   const q = nextShooter(s, fromSeat);
   if (!q) return finish(s);
   s.turn = q.id;
-  s.wind = nextWind(s, rng);
+  s.wind = nextWind();
   s.deadline = s.updatedAt + extraMs + TURN_MS;
   if (!q.loaded || !q.arsenal.includes(q.loaded)) q.loaded = q.arsenal[0];
 }
@@ -114,24 +113,33 @@ function startBattle(s: TanksState, rng: Rng) {
   s.deadline = s.updatedAt + TURN_MS;
 }
 
+/** Hand the pick on; players who asked for random picks get theirs on the spot. */
 function advanceDraft(s: TanksState, rng: Rng) {
   for (;;) {
     s.draftIdx++;
     if (s.draftIdx >= s.draftOrder.length) return startBattle(s, rng);
     const q = s.players[s.draftOrder[s.draftIdx]];
-    if (!q.left) {
-      s.turn = q.id;
-      s.deadline = s.updatedAt + PICK_MS;
-      return;
+    if (q.left) continue;
+    if (q.autoDraft) {
+      doPick(s, q, randomPick(s, rng), true);
+      continue;
     }
+    s.turn = q.id;
+    s.deadline = s.updatedAt + PICK_MS;
+    return;
   }
 }
 
-function doPick(s: TanksState, p: TanksPlayer, w: WeaponId) {
+function doPick(s: TanksState, p: TanksPlayer, w: WeaponId, random = false) {
   s.pool.splice(s.pool.indexOf(w), 1);
   p.arsenal.push(w);
   p.drafted.push(w);
-  log(s, "pick", { ...who(p), weapon: w });
+  log(s, "pick", { ...who(p), weapon: w, n: random ? 1 : 0 });
+}
+
+/** Pocket Tanks' "Random": any weapon still on the table, all equally likely. */
+export function randomPick(s: TanksState, rng: Rng): WeaponId {
+  return s.pool[Math.floor(rng() * s.pool.length)];
 }
 
 /** The auto-drafter: the hardest hitter left, with a little taste for variety. */
@@ -233,6 +241,7 @@ export function initTanks(players: GamePlayer[], now: number, rng: Rng): TanksSt
       dealt: 0,
       taken: 0,
       best: null,
+      autoDraft: false,
       left: false,
     };
   });
@@ -251,7 +260,7 @@ export function initTanks(players: GamePlayer[], now: number, rng: Rng): TanksSt
     phase: "draft",
     players: seated,
     biome,
-    gravity: biome === "lunar" ? 0.6 : 1,
+    gravity: 1,
     wind: 0,
     ground,
     pool,
@@ -272,7 +281,7 @@ export function initTanks(players: GamePlayer[], now: number, rng: Rng): TanksSt
     logSeq: 0,
     updatedAt: now,
   };
-  s.wind = nextWind(s, rng);
+  s.wind = nextWind();
   log(s, "start", who(seated[draftOrder[0]]));
   return s;
 }
@@ -282,14 +291,26 @@ export function applyTanksMove(s: TanksState, playerId: string, move: TanksMove,
   if (s.phase === "over") err("The game is over.");
   if (!move || typeof move !== "object") err("Unknown move.");
   if (p.left) err("You left this game.");
+  // asking for random picks works any time during the draft, turn or not
+  if (move.type === "autodraft") {
+    if (s.phase !== "draft") err("The draft is over.");
+    s.updatedAt = now;
+    p.autoDraft = true;
+    if (s.turn === p.id) {
+      doPick(s, p, randomPick(s, rng), true);
+      advanceDraft(s, rng);
+    }
+    return;
+  }
   if (s.turn !== p.id) err("It's not your turn.");
 
   switch (move.type) {
     case "pick": {
       if (s.phase !== "draft") err("The draft is over.");
-      if (!isWeapon(move.weapon) || !s.pool.includes(move.weapon)) err("That weapon isn't on the table.");
+      const random = move.weapon === "random";
+      if (!random && (!isWeapon(move.weapon) || !s.pool.includes(move.weapon))) err("That weapon isn't on the table.");
       s.updatedAt = now;
-      doPick(s, p, move.weapon);
+      doPick(s, p, random ? randomPick(s, rng) : (move.weapon as WeaponId), random);
       advanceDraft(s, rng);
       return;
     }

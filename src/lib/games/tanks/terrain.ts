@@ -103,14 +103,41 @@ function bump(g: number[], cx: number, r: number, hgt: number) {
   }
 }
 
-/** A row of discs along a segment: beams, drills, burrows. */
-function line(g: number[], x1: number, y1: number, x2: number, y2: number, r: number) {
+/** The discs a "line" op is made of — shared with the replay so it can animate each one. */
+export function lineCarves(x1: number, y1: number, x2: number, y2: number, r: number): { x: number; y: number; r: number }[] {
   const len = Math.hypot(x2 - x1, y2 - y1);
   const steps = Math.max(1, Math.ceil(len / (r * 0.7)));
+  const out: { x: number; y: number; r: number }[] = [];
   for (let s = 0; s <= steps; s++) {
     const u = s / steps;
-    carve(g, r1(x1 + (x2 - x1) * u), r1(y1 + (y2 - y1) * u), r);
+    out.push({ x: r1(x1 + (x2 - x1) * u), y: r1(y1 + (y2 - y1) * u), r });
   }
+  return out;
+}
+
+/** A row of discs along a segment: channels and burrows. */
+function line(g: number[], x1: number, y1: number, x2: number, y2: number, r: number) {
+  for (const c of lineCarves(x1, y1, x2, y2, r)) carve(g, c.x, c.y, c.r);
+}
+
+/**
+ * For the replay: which columns a disc carve would leave dirt HANGING over —
+ * the hole opens under the surface and the dirt above drops into it. Returns
+ * [column, hole bottom, hole top, surface height before] for each.
+ */
+export function hangingDirt(g: ArrayLike<number>, cx: number, cy: number, r: number): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  const [i0, i1] = span(cx, r);
+  for (let i = i0; i <= i1; i++) {
+    const dx = (i + 0.5) * COL - cx;
+    const q = r * r - dx * dx;
+    if (q <= 0) continue;
+    const dy = Math.sqrt(q);
+    const bot = cy - dy;
+    const top = cy + dy;
+    if (g[i] > top) out.push([i, Math.max(FLOOR, bot), top, g[i]]);
+  }
+  return out;
 }
 
 /** Integer hash → [0, 1). Deterministic everywhere (no trig, no floats in). */

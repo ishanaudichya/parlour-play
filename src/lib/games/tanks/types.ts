@@ -1,7 +1,9 @@
-/* Pocket Tanks — artillery on a destructible ridge. Each player drafts an
-   arsenal from a shared pool, then the tanks take turns firing one weapon
-   apiece; every point of damage you deal is a point on your score. When the
-   last weapon has flown, the highest score wins (a tie is a draw).
+/* Pocket Tanks — artillery on a destructible ridge, with Pocket Tanks' own
+   original 30 weapons. Each player drafts an arsenal from a shared pool (or
+   lets it be dealt at random), then the tanks take turns firing one weapon
+   apiece; every point of damage you deal is a point on your score. No wind,
+   no fall damage — as in Pocket Tanks. When the last weapon has flown, the
+   highest score wins (a tie is a draw).
 
    Perfect information: terrain, arsenals and scores are public, so player and
    spectator views are identical apart from `youId`. */
@@ -19,8 +21,6 @@ export const MOVES = 4;
 export const ARSENAL: Record<number, number> = { 2: 10, 3: 7, 4: 6 };
 /** Extra weapons in the draft pool, so the last picks still choose. */
 export const POOL_SPARE = 4;
-/** Strongest wind, in the same units the HUD shows. */
-export const MAX_WIND = 20;
 
 export type TankColor = "red" | "blue" | "lime" | "gold";
 export type Biome = "mesa" | "tundra" | "ashlands" | "lunar";
@@ -28,7 +28,10 @@ export type Biome = "mesa" | "tundra" | "ashlands" | "lunar";
 export type TanksPhase = "draft" | "aim" | "over";
 
 export type TanksMove =
-  | { type: "pick"; weapon: WeaponId }
+  /** "random" lets the table choose for you */
+  | { type: "pick"; weapon: WeaponId | "random" }
+  /** stop choosing: every remaining pick of yours is made at random, instantly */
+  | { type: "autodraft" }
   | { type: "aim"; angle: number; power: number; weapon?: WeaponId }
   | { type: "drive"; dir: -1 | 1 }
   | { type: "fire"; angle: number; power: number; weapon: WeaponId };
@@ -59,6 +62,8 @@ export interface TanksPlayer {
   taken: number;
   /** the single shot that scored the most */
   best: { weapon: WeaponId; pts: number } | null;
+  /** asked for the rest of their picks to be random */
+  autoDraft: boolean;
   /** walked out of the party mid-game — their tank is gone */
   left: boolean;
 }
@@ -73,62 +78,20 @@ export type TerrainOp =
   | { k: "line"; x1: number; y1: number; x2: number; y2: number; r: number }
   | { k: "quake"; x: number; r: number; amp: number; seed: number };
 
-export type FxStyle =
-  | "fire"
-  | "big"
-  | "nuke"
-  | "electric"
-  | "acid"
-  | "lava"
-  | "void"
-  | "spark"
-  | "pop"
-  | "mud"
-  | "meteor"
-  | "orbital"
-  | "dirt"
-  | "blink"
-  | "firework";
+/** How an explosion looks. Pocket Tanks' explosions are colour-cycling rings;
+    the palette is what changes from weapon to weapon. */
+export type FxStyle = "fire" | "big" | "small" | "ice" | "zap" | "napalm" | "dirt" | "web" | "pop" | "spark" | "sniper";
 
 export type TrackStyle =
-  | "shell"
-  | "heavy"
-  | "sun"
-  | "bomblet"
-  | "hydra"
-  | "roller"
-  | "pinball"
-  | "drill"
-  | "napalm"
-  | "flame"
-  | "acid"
-  | "acidcloud"
-  | "raindrop"
-  | "thunder"
-  | "flare"
-  | "bomb"
-  | "summon"
-  | "meteor"
-  | "beacon"
-  | "void"
-  | "tremor"
-  | "volcano"
-  | "lava"
-  | "mud"
-  | "rampart"
-  | "blink"
-  | "seeker"
-  | "boomerang"
-  | "saw"
-  | "rocket"
-  | "star0"
-  | "star1"
-  | "star2"
-  | "star3"
+  | "bullet"
+  | "warhead"
   | "tracer"
-  | "piston"
-  | "seed"
-  | "twister";
+  | "ice"
+  | "flame"
+  | "clod"
+  | "dig"
+  | "missile"
+  | "round";
 
 export interface Track {
   s: TrackStyle;
@@ -138,6 +101,8 @@ export interface Track {
   t1: number;
   /** sample interval in ticks */
   k: number;
+  /** colour of the bullet, when the style doesn't fix it */
+  c?: string;
   /** x,y pairs (y up, rounded), one per `k` ticks from t0, plus the final position */
   p: number[];
 }
@@ -146,15 +111,11 @@ export type ShotEvent =
   | { t: number; k: "op"; op: TerrainOp }
   | { t: number; k: "boom"; x: number; y: number; r: number; fx: FxStyle }
   | { t: number; k: "dmg"; seat: number; n: number; x: number; y: number }
-  | { t: number; k: "tank"; seat: number; x: number; y: number; how: "fall" | "push" | "blink" | "rise" | "toss"; d: number }
-  | { t: number; k: "beam"; pts: number[]; fx: "lance" | "prism" | "orbital"; d: number }
-  | { t: number; k: "bolt"; x1: number; y1: number; x2: number; y2: number; seed: number }
-  | { t: number; k: "plane"; x0: number; x1: number; y: number; d: number }
-  | { t: number; k: "cloud"; x: number; y: number; d: number }
-  | { t: number; k: "well"; x: number; y: number; d: number }
-  | { t: number; k: "quake"; d: number }
-  | { t: number; k: "burst"; x: number; y: number; fx: "firework" | "split" | "erupt" }
-  | { t: number; k: "flare"; x: number; y: number; d: number; fx: "smoke" | "target" | "summon" }
+  | { t: number; k: "tank"; seat: number; x: number; y: number; how: "fall" | "push" | "rise" | "toss"; d: number }
+  /** a straight line of energy or silk from (x1,y1) to (x2,y2) */
+  | { t: number; k: "beam"; x1: number; y1: number; x2: number; y2: number; fx: "zap" | "web"; d: number }
+  /** a Tracer bullet came down here: change your angle by `label` to land here */
+  | { t: number; k: "mark"; x: number; y: number; label: string; seat: number }
   | { t: number; k: "muzzle"; seat: number }
   | { t: number; k: "bounce"; x: number; y: number };
 

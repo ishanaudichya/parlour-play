@@ -14,55 +14,20 @@ import {
   applyOp,
   COL,
   H,
+  hangingDirt,
   heightAt,
+  lineCarves,
   NCOL,
   tankGround,
   tankTilt,
   W,
 } from "@/lib/games/tanks/terrain";
-import { TPS } from "@/lib/games/tanks/sim";
-import type { FxStyle, LastDrive, LastShot, ShotEvent, TankColor, Track, TanksView } from "@/lib/games/tanks/types";
-import {
-  boltPath,
-  drawBeam,
-  drawBolt,
-  drawHead,
-  drawPlane,
-  drawRift,
-  drawStorm,
-  drawTank,
-  drawTarget,
-  drawTrail,
-  drawTwister,
-  drawWell,
-  heart,
-  renderRock,
-  renderSky,
-  TRAIL,
-  Y,
-} from "./draw";
-import { arcs, debris, droplets, embers, fireball, Fx, glitter, mix, ring, smoke, soft, sparks, withAlpha } from "./fx";
+import { G, TPS } from "@/lib/games/tanks/sim";
+import type { FxStyle, LastDrive, LastShot, ShotEvent, TankColor, TerrainOp, Track, TanksView } from "@/lib/games/tanks/types";
+import { drawBlast, drawDotted, drawHead, drawSilk, drawTail, drawTank, drawZap, heart, PALETTE, renderRock, renderSky, Y } from "./draw";
+import { debris, embers, Fx, glitter, mix, ring, smoke, soft, sparks, withAlpha } from "./fx";
 import { BIOME, TANK, type Look } from "./palette";
-import {
-  sfxBeam,
-  sfxBolt,
-  sfxBoom,
-  sfxBounce,
-  sfxBurst,
-  sfxEngine,
-  sfxFire,
-  sfxGrind,
-  sfxHit,
-  sfxPlane,
-  sfxRain,
-  sfxRound,
-  sfxRumble,
-  sfxSizzle,
-  sfxThud,
-  sfxWarp,
-  sfxWell,
-  sfxWind,
-} from "./sfx";
+import { sfxBoom, sfxBounce, sfxDig, sfxEngine, sfxFire, sfxHit, sfxRound, sfxSizzle, sfxThud, sfxTink, sfxWeb, sfxZap } from "./sfx";
 
 const MS_PER_TICK = 1000 / TPS;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -103,12 +68,32 @@ interface TankSprite {
 
 /** A timed effect, in ms. */
 interface Effect {
-  kind: "beam" | "bolt" | "plane" | "storm" | "well" | "flare-smoke" | "flare-target" | "flare-summon" | "quake" | "mushroom";
+  kind: "zap" | "web" | "blast";
   start: number;
   dur: number;
   x: number;
   y: number;
-  data?: unknown;
+  x2?: number;
+  y2?: number;
+  r?: number;
+  pal?: string[];
+  seed?: number;
+}
+
+/** Dirt left hanging over a fresh hole, falling into it. World units. */
+interface Float {
+  /** current bottom of the chunk */
+  y: number;
+  len: number;
+  v: number;
+}
+
+/** A Tracer's landing: change your angle by `label` to land here. Kept until that tank fires again. */
+interface Mark {
+  seat: number;
+  x: number;
+  y: number;
+  label: string;
 }
 
 interface Popup {
@@ -172,6 +157,10 @@ export class Scene {
   scores: number[] = [];
   fx = new Fx();
   effects: Effect[] = [];
+  floats = new Map<number, Float>();
+  marks: Mark[] = [];
+  /** the dotted paths of each tank's last Tracer */
+  tracerPaths: { seat: number; pts: [number, number][] }[] = [];
   popups: Popup[] = [];
   ambient: Ambient[] = [];
   shake = 0;
@@ -271,6 +260,9 @@ export class Scene {
     this.fx.clear();
     this.effects = [];
     this.popups = [];
+    this.floats.clear();
+    this.marks = [];
+    this.tracerPaths = [];
     this.biome = v.biome;
     this.look = this.theme === "auto" ? v.biome : this.theme;
     this.scenery = v.scenery;
@@ -308,6 +300,7 @@ export class Scene {
   private sync(v: TanksView) {
     this.wind = v.wind;
     this.gravity = v.gravity;
+    this.floats.clear();
     for (let i = 0; i < NCOL; i++) {
       this.target[i] = v.ground[i];
       if (this.ground[i] > v.ground[i] || Math.abs(this.ground[i] - v.ground[i]) > 40) this.ground[i] = v.ground[i];
@@ -354,6 +347,10 @@ export class Scene {
     // rewind to the world as it was when the trigger was pulled
     this.ground = s.pre.ground.slice();
     this.target = s.pre.ground.slice();
+    this.floats.clear();
+    // a tank's tracer readings last until it fires again
+    this.marks = this.marks.filter((m) => m.seat !== s.seat);
+    this.tracerPaths = this.tracerPaths.filter((p) => p.seat !== s.seat);
     for (const t of this.tanks.values()) {
       const pre = s.pre.tanks.find((q) => q.seat === t.seat);
       t.tween = null;
@@ -373,6 +370,18 @@ export class Scene {
   }
 
   private finishBeat() {
+    const cur = this.cur;
+    if (cur?.kind === "shot") {
+      const shot = (cur.beat as Extract<Beat, { kind: "shot" }>).s;
+      for (const tr of shot.rec.tracks) {
+        if (tr.s !== "tracer") continue;
+        const pts: [number, number][] = [];
+        for (let i = 0; i + 1 < tr.p.length; i += 2) pts.push([tr.p[i], tr.p[i + 1]]);
+        this.tracerPaths.push({ seat: shot.seat, pts });
+      }
+    }
+    for (const [i] of this.floats) this.ground[i] = this.target[i];
+    this.floats.clear();
     for (const t of this.tanks.values()) {
       if (t.tween) {
         t.x = t.tween.tx;
@@ -440,9 +449,19 @@ export class Scene {
       if (now >= cur.start + cur.dur) this.finishBeat();
     }
 
-    // ground: craters snap open, dirt rises into place
+    // ground: craters snap open, hanging dirt falls in, new dirt rises
     const rise = dt * 260;
+    for (const [i, f] of this.floats) {
+      f.v += G * this.gravity * dt;
+      f.y -= f.v * dt;
+      if (f.y <= this.ground[i]) {
+        this.ground[i] = this.target[i];
+        this.floats.delete(i);
+        if (i % 6 === 0 && Math.random() < 0.5) this.fx.add({ k: "smoke", x: (i + 0.5) * COL, y: this.ground[i] + 2, vx: rnd(-10, 10), vy: rnd(6, 14), drag: 0.5, max: 0.9, size: 3, grow: 9, color: BIOME[this.look].debris[0], alpha: 0.3 });
+      }
+    }
     for (let i = 0; i < NCOL; i++) {
+      if (this.floats.has(i)) continue;
       const g = this.ground[i];
       const tg = this.target[i];
       if (g > tg) this.ground[i] = tg;
@@ -514,34 +533,39 @@ export class Scene {
     this.fx.update(dt, (x) => heightAt(this.ground, x));
     this.shake *= Math.pow(0.0025, dt);
     this.screenFlash.a = Math.max(0, this.screenFlash.a - dt * 2.2);
-    this.effects = this.effects.filter((e) => now < e.start + e.dur + 400);
+    this.effects = this.effects.filter((e) => now < e.start + e.dur + 100);
     this.popups = this.popups.filter((p) => now < p.start + 1600);
-    this.effectEmit(now, dt);
     this.updateAmbient(dt);
   }
 
   /* ================= events ================= */
+
+  /** Apply a terrain op to the replay: holes open at once, dirt left hanging over them falls. */
+  private terrain(op: TerrainOp) {
+    const discs = op.k === "carve" ? [{ x: op.x, y: op.y, r: op.r }] : op.k === "line" ? lineCarves(op.x1, op.y1, op.x2, op.y2, op.r) : [];
+    for (const d of discs) {
+      const hanging = hangingDirt(this.target, d.x, d.y, d.r);
+      for (const [i] of hanging) {
+        // settle anything already falling in this column first
+        if (this.floats.has(i)) this.floats.delete(i);
+        this.ground[i] = this.target[i];
+      }
+      applyOp(this.target, { k: "carve", x: d.x, y: d.y, r: d.r });
+      for (const [i, bot, top, before] of hanging) {
+        this.ground[i] = bot;
+        this.floats.set(i, { y: top, len: before - top, v: 0 });
+      }
+    }
+    if (!discs.length) applyOp(this.target, op);
+  }
 
   private handle(e: ShotEvent, s: LastShot) {
     const now = performance.now();
     const shooter = this.tanks.get(s.seat);
     const shooterColor = shooter ? TANK[shooter.color].light : "#ffffff";
     switch (e.k) {
-      case "op": {
-        applyOp(this.target, e.op);
-        const sc = this.scorch?.getContext("2d");
-        if (sc && e.op.k === "line" && e.op.r >= 8) {
-          sc.globalCompositeOperation = "source-over";
-          sc.strokeStyle = "rgba(20,10,6,0.35)";
-          sc.lineWidth = e.op.r * 2.6;
-          sc.lineCap = "round";
-          sc.beginPath();
-          sc.moveTo(e.op.x1, H - e.op.y1);
-          sc.lineTo(e.op.x2, H - e.op.y2);
-          sc.stroke();
-        }
-        return;
-      }
+      case "op":
+        return this.terrain(e.op);
       case "boom":
         return this.boom(e.x, e.y, e.r, e.fx);
       case "dmg": {
@@ -557,81 +581,33 @@ export class Scene {
         }
         const stack = this.popups.filter((p) => p.seat === e.seat && now - p.start < 700).length;
         this.popups.push({ seat: e.seat, x: e.x + rnd(-5, 5) + (stack % 2 ? 14 : stack ? -14 : 0), y: e.y + stack * 13, text: self ? `−${e.n}` : `+${e.n}`, color: self ? "#ff6a5a" : shooterColor, start: now });
-        sfxHit(self);
+        if (e.n > 1) sfxHit(self);
+        else sfxTink();
         return;
       }
       case "tank": {
         const t = this.tanks.get(e.seat);
         if (!t) return;
         t.tween = { fx: t.x, fy: t.y, tx: e.x, ty: e.y, start: now, dur: e.d * MS_PER_TICK, how: e.how };
-        if (e.how === "blink") sfxWarp();
-        if (e.how === "toss") sfxWind(0.8);
-        if (e.how === "push") debris(this.fx, t.x, t.y, 6, BIOME[this.look].debris, 60);
+        if (e.how === "push" || e.how === "toss") debris(this.fx, t.x, t.y, 6, BIOME[this.look].debris, 60);
         return;
       }
-      case "beam": {
-        let len = 0;
-        for (let i = 0; i + 3 < e.pts.length; i += 2) len += Math.hypot(e.pts[i + 2] - e.pts[i], e.pts[i + 3] - e.pts[i + 1]);
-        this.effects.push({ kind: "beam", start: now, dur: e.d * MS_PER_TICK, x: e.pts[0], y: e.pts[1], data: { pts: e.pts, fx: e.fx, len } });
-        sfxBeam(e.fx, (e.d * MS_PER_TICK) / 1000);
-        if (e.fx === "orbital") {
-          this.screenFlash = { a: 0.35, color: "#9fd8ff" };
-          this.shake = Math.max(this.shake, 12);
-        } else this.shake = Math.max(this.shake, 3);
-        // light all along the beam
-        for (let i = 0; i + 1 < e.pts.length; i += 2) this.fx.light(e.pts[i], e.pts[i + 1], 60, e.fx === "lance" ? "#ff3a5a" : "#3ad4ff", 0.5, 0.7);
-        return;
-      }
-      case "bolt": {
-        this.effects.push({ kind: "bolt", start: now, dur: 230, x: e.x2, y: e.y2, data: e });
-        this.screenFlash = { a: 0.28, color: "#cfe0ff" };
-        this.shake = Math.max(this.shake, 6);
-        this.fx.light(e.x2, e.y2, 140, "#9cc4ff", 0.4);
-        sfxBolt();
-        return;
-      }
-      case "plane":
-        this.effects.push({ kind: "plane", start: now, dur: e.d * MS_PER_TICK, x: e.x0, y: e.y, data: { x1: e.x1, color: TANK[shooter?.color ?? "red"].base } });
-        sfxPlane((e.d * MS_PER_TICK) / 1000);
-        return;
-      case "cloud":
-        this.effects.push({ kind: "storm", start: now, dur: e.d * MS_PER_TICK, x: e.x, y: e.y });
-        sfxRumble(1.2);
-        return;
-      case "well":
-        this.effects.push({ kind: "well", start: now, dur: e.d * MS_PER_TICK, x: e.x, y: e.y });
-        sfxWell((e.d * MS_PER_TICK) / 1000);
-        return;
-      case "quake":
-        this.effects.push({ kind: "quake", start: now, dur: e.d * MS_PER_TICK, x: 0, y: 0 });
-        sfxRumble((e.d * MS_PER_TICK) / 1000);
-        return;
-      case "burst":
-        sfxBurst(e.fx);
-        if (e.fx === "firework") {
-          glitter(this.fx, e.x, e.y, 70, ["#ff6bd6", "#62f0ff", "#ffd34d", "#8cff6b", "#ffffff"], 170, 0.18);
-          this.fx.add({ k: "flash", x: e.x, y: e.y, size: 60, color: "#ffffff", max: 0.3 });
-          ring(this.fx, e.x, e.y, 60, "#ffe4f6", 2, 0.5);
-          this.fx.light(e.x, e.y, 200, "#ff9ad8", 0.6);
-        } else if (e.fx === "split") {
-          this.fx.add({ k: "flash", x: e.x, y: e.y, size: 26, color: "#ffffff", max: 0.2 });
-          ring(this.fx, e.x, e.y, 24, "#ffffff", 1.5, 0.35);
-          sparks(this.fx, e.x, e.y, 10, "#fff0b0", 160);
+      case "beam":
+        if (e.fx === "zap") {
+          this.effects.push({ kind: "zap", start: now, dur: e.d * MS_PER_TICK, x: e.x1, y: e.y1, x2: e.x2, y2: e.y2, seed: Math.floor(Math.random() * 1e6) });
+          this.fx.light(e.x2, e.y2, 90, "#40c4ff", 0.4);
+          this.screenFlash = { a: 0.12, color: "#bfe6ff" };
+          sfxZap();
         } else {
-          fireball(this.fx, e.x, e.y + 6, 26, "#ff6a1a", 16);
-          embers(this.fx, e.x, e.y, 40, "#ff7a2a", 10);
-          smoke(this.fx, e.x, e.y + 20, 14, 30, "#2a1a14", this.wind, 50);
-          this.shake = Math.max(this.shake, 8);
-          this.fx.light(e.x, e.y, 180, "#ff5a1a", 1.2);
+          this.effects.push({ kind: "web", start: now, dur: e.d * MS_PER_TICK, x: e.x1, y: e.y1, x2: e.x2, y2: e.y2 });
+          sfxWeb();
         }
         return;
-      case "flare": {
-        const kind = e.fx === "smoke" ? "flare-smoke" : e.fx === "target" ? "flare-target" : "flare-summon";
-        this.effects.push({ kind, start: now, dur: e.d * MS_PER_TICK, x: e.x, y: e.y });
+      case "mark":
+        this.marks.push({ seat: e.seat, x: e.x, y: e.y, label: e.label });
         return;
-      }
       case "muzzle":
-        this.muzzle(e.seat, "gatling", false);
+        this.muzzle(e.seat, "tommygun", false);
         return;
       case "bounce":
         sfxBounce();
@@ -646,31 +622,31 @@ export class Scene {
     const mx = t.x + Math.cos(a) * 22;
     const my = t.y + 15 + Math.sin(a) * 22;
     t.recoil = 1;
-    const beamy = weapon === "lance" || weapon === "prism";
-    const col = beamy ? (weapon === "lance" ? "#ff4a6a" : "#5ae4ff") : "#ffd27a";
-    this.fx.add({ k: "flash", x: mx, y: my, size: main ? 22 : 12, color: col, max: 0.14 });
-    for (let i = 0; i < (main ? 10 : 4); i++) {
-      const s = rnd(80, 220);
+    const col = weapon === "sniper" ? "#ffffff" : "#ffd27a";
+    this.fx.add({ k: "flash", x: mx, y: my, size: main ? 20 : 11, color: col, max: 0.12 });
+    for (let i = 0; i < (main ? 8 : 3); i++) {
+      const sp = rnd(80, 220);
       const da = a + rnd(-0.35, 0.35);
-      this.fx.add({ k: "spark", x: mx, y: my, vx: Math.cos(da) * s, vy: Math.sin(da) * s, drag: 0.1, max: rnd(0.1, 0.25), size: 1.2, color: col });
+      this.fx.add({ k: "spark", x: mx, y: my, vx: Math.cos(da) * sp, vy: Math.sin(da) * sp, drag: 0.1, max: rnd(0.1, 0.22), size: 1.1, color: col });
     }
-    if (!beamy) {
-      for (let i = 0; i < (main ? 6 : 2); i++) {
-        const s = rnd(20, 60);
-        this.fx.add({ k: "smoke", x: mx, y: my, vx: Math.cos(a) * s + this.wind * 2, vy: Math.sin(a) * s + 8, drag: 0.3, max: rnd(0.8, 1.6), size: 3, grow: 10, color: "#b9b2a4", alpha: 0.45 });
-      }
+    for (let i = 0; i < (main ? 5 : 1); i++) {
+      const sp = rnd(20, 60);
+      this.fx.add({ k: "smoke", x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + 8, drag: 0.3, max: rnd(0.8, 1.5), size: 3, grow: 9, color: "#b9b2a4", alpha: 0.4 });
     }
-    this.fx.light(mx, my, main ? 80 : 40, col, 0.18);
+    this.fx.light(mx, my, main ? 70 : 34, col, 0.16);
     if (main) {
-      this.shake = Math.max(this.shake, 3.5);
+      this.shake = Math.max(this.shake, 3);
       sfxFire(weapon);
     } else sfxRound();
   }
 
+  /** An explosion, Pocket Tanks style: a colour-cycling disc of rings, plus a little debris and light. */
   private boom(x: number, y: number, r: number, fx: FxStyle) {
     const b = BIOME[this.look];
-    const wind = this.wind;
+    const now = performance.now();
     sfxBoom(fx, r);
+    const dur = fx === "spark" ? 220 : 420 + r * 7;
+    this.effects.push({ kind: "blast", start: now, dur, x, y, r, pal: PALETTE[fx] });
     const scorch = (rad: number, color: string, alpha: number) => {
       const sc = this.scorch?.getContext("2d");
       if (!sc) return;
@@ -681,142 +657,38 @@ export class Scene {
       sc.fillStyle = g;
       sc.fillRect(x - rad, H - y - rad, rad * 2, rad * 2);
     };
+    const warm = fx === "fire" || fx === "big" || fx === "small" || fx === "pop" || fx === "napalm";
+    if (r >= 10) debris(this.fx, x, y, Math.round(Math.min(26, r / 2)), b.debris, r * 6);
     switch (fx) {
-      case "fire":
-      case "big":
-      case "meteor": {
-        const k = fx === "big" ? 1.3 : 1;
-        this.fx.add({ k: "flash", x, y, size: r * 1.7 * k, color: "#fff1c4", max: 0.2 });
-        fireball(this.fx, x, y, r * k, fx === "big" ? "#ff7a2a" : "#ff9a3c", Math.round(10 + r / 3));
-        ring(this.fx, x, y, r * 1.5, "#ffe8c8", 2.5);
-        debris(this.fx, x, y, Math.round(r / 1.5), fx === "meteor" ? ["#3a2e28", "#5a4a40", ...b.debris] : b.debris, r * 7);
-        sparks(this.fx, x, y, Math.round(r / 2), "#ffd27a", r * 9, true);
-        smoke(this.fx, x, y + r * 0.3, Math.round(4 + r / 7), r * 0.6, "#3a3430", wind);
-        embers(this.fx, x, y, Math.round(r / 4), "#ff8a3a", r * 0.5);
-        this.fx.light(x, y, r * 3.4, "#ff9a4a", 0.45 + r / 120);
-        this.shake = Math.max(this.shake, Math.min(14, r / 5));
-        scorch(r * 1.2, "#140a06", 0.38);
+      case "ice":
+        glitter(this.fx, x, y, 14, ["#ffffff", "#b3e5fc", "#e1f5fe"], 120, 0.5);
         break;
-      }
-      case "nuke": {
-        this.screenFlash = { a: 0.95, color: "#fff6dc" };
-        this.fx.add({ k: "flash", x, y, size: r * 3, color: "#ffffff", max: 0.5 });
-        fireball(this.fx, x, y, r * 0.9, "#ffb03a", 40);
-        ring(this.fx, x, y, r * 2.4, "#fff2d0", 4, 0.9);
-        ring(this.fx, x, y + 6, r * 4, "#ffd8a0", 2, 1.4);
-        debris(this.fx, x, y, 60, b.debris, r * 6);
-        sparks(this.fx, x, y, 50, "#ffe08a", r * 7, true);
-        embers(this.fx, x, y, 80, "#ff8a3a", r * 0.8);
-        this.effects.push({ kind: "mushroom", start: performance.now(), dur: 3200, x, y });
-        this.fx.light(x, y, r * 6, "#ffb45a", 2.2, 1);
-        this.shake = 24;
-        scorch(r * 1.4, "#0e0604", 0.5);
+      case "zap":
+        sparks(this.fx, x, y, 14, "#80d8ff", 220);
+        this.fx.light(x, y, r * 4, "#40c4ff", 0.4);
         break;
-      }
-      case "electric": {
-        this.fx.add({ k: "flash", x, y, size: r * 2, color: "#cfe4ff", max: 0.18 });
-        arcs(this.fx, x, y, 9, "#cfe4ff", r * 1.6);
-        sparks(this.fx, x, y, 18, "#9cc4ff", 260);
-        ring(this.fx, x, y, r * 1.3, "#9cc4ff", 2);
-        smoke(this.fx, x, y, 3, r * 0.5, "#2a2e3a", wind);
-        debris(this.fx, x, y, Math.round(r / 2), b.debris, r * 6);
-        this.fx.light(x, y, r * 4, "#7fb0ff", 0.5);
+      case "web":
+        glitter(this.fx, x, y, 6, ["#ffffff"], 60, 0.4);
+        break;
+      case "dirt":
+        smoke(this.fx, x, y, Math.round(2 + r / 10), r * 0.6, mix(b.debris[0], "#7a7066", 0.4), this.wind, 16);
+        this.shake = Math.max(this.shake, Math.min(8, r / 6));
+        break;
+      case "napalm":
+        embers(this.fx, x, y, 16, "#ff7a2a", 10);
+        break;
+      case "sniper":
+        sparks(this.fx, x, y, 16, "#ffffff", 320, true);
         this.shake = Math.max(this.shake, 4);
-        scorch(r, "#0a0c14", 0.55);
         break;
-      }
-      case "acid": {
-        droplets(this.fx, x, y, 8, "#a8ff4a", 120, 1.4);
-        for (let i = 0; i < 3; i++) this.fx.add({ k: "bubble", x: x + rnd(-5, 5), y: y + 2, vy: rnd(10, 26), max: rnd(0.6, 1.2), size: rnd(1, 2.2), color: "#c6ff6a" });
-        smoke(this.fx, x, y, 1, 6, "#5a6a2a", wind, 14);
-        this.fx.light(x, y, 30, "#8cff2a", 0.3, 0.6);
-        scorch(14, "#3a5a10", 0.35);
-        break;
-      }
-      case "lava": {
-        fireball(this.fx, x, y, r * 0.8, "#ff6a1a", 8);
-        droplets(this.fx, x, y, 10, "#ffb347", 170, 1.8);
-        embers(this.fx, x, y, 14, "#ff7a2a", 8);
-        smoke(this.fx, x, y, 3, r * 0.5, "#24140e", wind);
-        debris(this.fx, x, y, 6, b.debris, r * 5);
-        this.fx.light(x, y, r * 3.5, "#ff5a1a", 0.6);
-        this.shake = Math.max(this.shake, 3);
-        scorch(r * 1.1, "#1a0804", 0.32);
-        break;
-      }
-      case "void": {
-        for (let i = 0; i < 36; i++) {
-          const a = rnd(0, Math.PI * 2);
-          const d = rnd(r * 1.4, r * 2.4);
-          this.fx.add({ k: "glitter", x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: -Math.cos(a) * d * 3, vy: -Math.sin(a) * d * 3, max: 0.3, size: 1.6, color: "#c58cff" });
-        }
-        this.fx.add({ k: "flash", x, y, size: r * 2.4, color: "#b67bff", max: 0.35 });
-        ring(this.fx, x, y, r * 2, "#e0c4ff", 3, 0.6);
-        ring(this.fx, x, y, r * 3, "#8a4bff", 1.5, 0.9);
-        sparks(this.fx, x, y, 24, "#d6b4ff", 300);
-        debris(this.fx, x, y, 24, b.debris, r * 7);
-        this.fx.light(x, y, r * 4, "#8a3bff", 0.8);
-        this.shake = Math.max(this.shake, 12);
-        scorch(r * 1.2, "#14061e", 0.4);
-        break;
-      }
-      case "spark": {
-        sparks(this.fx, x, y, 10, "#fff0b0", 200, true);
-        this.fx.add({ k: "flash", x, y, size: r * 1.6, color: "#fff4d0", max: 0.12 });
-        this.fx.light(x, y, r * 3, "#ffe08a", 0.25, 0.6);
-        if (r >= 14) debris(this.fx, x, y, 5, b.debris, 110);
-        break;
-      }
-      case "pop": {
-        this.fx.add({ k: "flash", x, y, size: r * 2, color: "#ffcf7a", max: 0.12 });
-        for (let i = 0; i < 12; i++) {
-          this.fx.add({ k: "confetti", x, y: y + 3, vx: rnd(-90, 90), vy: rnd(80, 220), g: 0.5, drag: 0.4, max: rnd(1.4, 2.4), size: rnd(2, 3.4), vr: rnd(-10, 10), color: ["#ff4a4a", "#ffd34d", "#ffffff", "#ff8a3a"][i % 4] });
-        }
-        sparks(this.fx, x, y, 8, "#ffd27a", 180, true);
-        smoke(this.fx, x, y, 2, 8, "#5a504a", wind, 18);
-        debris(this.fx, x, y, 5, b.debris, 110);
-        this.fx.light(x, y, 50, "#ff7a3a", 0.25);
-        this.shake = Math.max(this.shake, 2);
-        scorch(r, "#1a0a06", 0.45);
-        break;
-      }
-      case "mud":
-      case "dirt": {
-        const browns = fx === "mud" ? ["#7a5638", "#5a3e28", "#9a7450", ...b.debris.slice(0, 2)] : b.debris;
-        debris(this.fx, x, y, Math.round(10 + r / 2), browns, r * 6);
-        smoke(this.fx, x, y, Math.round(3 + r / 8), r * 0.7, mix(b.debris[0], "#7a7066", 0.4), wind, 18);
-        ring(this.fx, x, y, r * 1.2, withAlpha(b.debris[0], 0.8), 3, 0.5);
-        this.shake = Math.max(this.shake, fx === "mud" ? 4 : 6);
-        break;
-      }
-      case "orbital": {
-        this.fx.add({ k: "flash", x, y, size: 90, color: "#cfeaff", max: 0.4 });
-        ring(this.fx, x, y, 80, "#bfe6ff", 4, 0.7);
-        sparks(this.fx, x, y, 40, "#cfeaff", 360, true);
-        debris(this.fx, x, y, 40, b.debris, 380);
-        smoke(this.fx, x, y + 10, 12, 30, "#2a3040", wind, 40);
-        for (let i = 0; i < 16; i++) this.fx.add({ k: "streak", x: x + rnd(-14, 14), y: y + rnd(0, 20), vx: 0, vy: rnd(300, 700), max: rnd(0.3, 0.6), size: rnd(1, 2.2), color: "#9fdcff" });
-        this.fx.light(x, y, 260, "#6fd3ff", 1.2);
-        this.shake = Math.max(this.shake, 14);
-        scorch(46, "#060a14", 0.45);
-        break;
-      }
-      case "blink": {
-        ring(this.fx, x, y, 26, "#59fff0", 2, 0.5);
-        ring(this.fx, x, y, 40, "#c8fffa", 1, 0.7);
-        glitter(this.fx, x, y, 24, ["#59fff0", "#ffffff", "#9ffff6"], 90, 0);
-        for (let i = 0; i < 10; i++) this.fx.add({ k: "streak", x: x + rnd(-10, 10), y: y + rnd(-6, 6), vx: 0, vy: rnd(120, 320), max: rnd(0.3, 0.5), size: 1.2, color: "#9ffff6" });
-        this.fx.light(x, y, 90, "#59fff0", 0.5);
-        break;
-      }
-      case "firework": {
-        glitter(this.fx, x, y, 14, ["#ff6bd6", "#62f0ff", "#ffd34d", "#8cff6b"], 120, 0.3);
-        this.fx.add({ k: "flash", x, y, size: 22, color: "#ffffff", max: 0.12 });
-        debris(this.fx, x, y, 4, b.debris, 100);
-        this.fx.light(x, y, 50, "#ff9ad8", 0.3);
-        scorch(r, "#1a0a14", 0.4);
-        break;
-      }
+    }
+    if (warm) {
+      sparks(this.fx, x, y, Math.round(r / 3), "#ffd27a", r * 8, true);
+      smoke(this.fx, x, y + r * 0.3, Math.round(2 + r / 12), r * 0.5, "#3a3430", this.wind);
+      this.fx.light(x, y, r * 3.2, "#ff9a4a", 0.35 + r / 160);
+      this.shake = Math.max(this.shake, Math.min(13, r / 6));
+      if (r > 50) ring(this.fx, x, y, r * 1.4, "#fff2d0", 3, 0.5);
+      scorch(r * 1.15, "#140a06", 0.36);
     }
   }
 
@@ -828,81 +700,35 @@ export class Scene {
       const p = posAt(tr, tau);
       if (!p) return;
       const [x, y] = p;
-      const q = posAt(tr, Math.max(tr.t0, tau - 1)) ?? p;
-      const vx = (x - q[0]) * TPS;
-      const vy = (y - q[1]) * TPS;
       const gh = x >= 0 && x <= W ? heightAt(this.ground, x) : -999;
-      const near = Math.abs(y - gh) < 9;
-      const under = y < gh - 4;
-      const startKey = `${tr.s}:start`;
-      if (!cur.started.has(startKey)) {
-        cur.started.add(startKey);
-        if (tr.s === "acidcloud") sfxRain(((tr.t1 - tr.t0) / TPS) * 0.9);
-        if (tr.s === "flame") sfxSizzle(2.4);
-      }
-      const groundedStyles = tr.s === "saw" || tr.s === "seed" || tr.s === "roller";
-      if (groundedStyles && near && Math.abs(vy) < 200 && !cur.grounded.has(i) && tau > tr.t0 + 4) {
-        cur.grounded.add(i);
-        cur.groundedAt.set(i, tau);
-        const secs = (tr.t1 - tau) / TPS;
-        if (tr.s === "saw") sfxGrind(secs);
-        if (tr.s === "seed") sfxWind(secs);
-      }
+      const under = y < gh - 3;
       const chance = (rate: number) => Math.random() < rate * dt;
+      const key = `${tr.s}:${i}`;
+      if (tr.s === "flame" && !cur.started.has("flame")) {
+        cur.started.add("flame");
+        sfxSizzle(2.4);
+      }
+      if (under && !cur.started.has(key)) {
+        cur.started.add(key);
+        if (tr.s === "bullet") sfxDig((tr.t1 - tau) / TPS);
+      }
       switch (tr.s) {
-        case "heavy":
-        case "seeker":
-        case "sun":
-          if (chance(tr.s === "seeker" ? 40 : 18)) this.fx.add({ k: "smoke", x, y, vx: this.wind * 2 + rnd(-6, 6), vy: rnd(2, 10), drag: 0.5, max: rnd(0.8, 1.6), size: 2, grow: tr.s === "sun" ? 14 : 8, color: tr.s === "sun" ? "#8a6a4a" : "#d8d2c4", alpha: 0.3 });
-          break;
-        case "meteor":
-        case "lava":
-        case "volcano":
-          if (chance(30)) this.fx.add({ k: "ember", x: x + rnd(-2, 2), y: y + rnd(-2, 2), vx: rnd(-20, 20), vy: rnd(-10, 20), g: 0.2, max: rnd(0.4, 0.9), size: 1.2, color: "#ff8a2a" });
-          if (tr.s === "meteor" && chance(20)) this.fx.add({ k: "smoke", x, y, vx: rnd(-6, 6), vy: rnd(4, 12), drag: 0.5, max: 1.6, size: 3, grow: 10, color: "#3a2a24", alpha: 0.4 });
+        case "bullet":
+        case "warhead":
+          if (under && chance(60)) debris(this.fx, x, gh, 1, b.debris, 90);
+          // cruising and skipping kick up dust
+          if (!under && Math.abs(y - gh) < 6 && chance(30)) this.fx.add({ k: "smoke", x, y: gh + 2, vx: rnd(-10, 10), vy: rnd(4, 12), drag: 0.5, max: 0.8, size: 2, grow: 6, color: b.debris[0], alpha: 0.35 });
           break;
         case "flame":
-          if (chance(10)) this.fx.add({ k: "smoke", x, y: y + 6, vx: this.wind * 2, vy: rnd(14, 30), drag: 0.6, max: rnd(0.8, 1.6), size: 2, grow: 7, color: "#2a2422", alpha: 0.35 });
+          if (chance(10)) this.fx.add({ k: "smoke", x, y: y + 6, vx: 0, vy: rnd(14, 30), drag: 0.6, max: rnd(0.8, 1.6), size: 2, grow: 7, color: "#2a2422", alpha: 0.35 });
           if (chance(8)) this.fx.add({ k: "ember", x, y: y + 4, vx: rnd(-10, 10), vy: rnd(30, 70), g: 0.2, max: 0.7, size: 1, color: "#ffb04a" });
-          if (near && chance(14)) this.scorchDot(x, y, 7, "#1a0a04", 0.18);
+          if (Math.abs(y - gh) < 5 && chance(14)) this.scorchDot(x, y, 7, "#1a0a04", 0.18);
           break;
-        case "rocket":
-        case "flare":
-        case "beacon":
-        case "summon":
-        case "star0":
-        case "star1":
-        case "star2":
-        case "star3":
-          if (chance(24)) this.fx.add({ k: "glitter", x, y, vx: rnd(-14, 14), vy: rnd(-24, 4), g: 0.1, max: rnd(0.4, 0.9), size: 1, color: TRAIL[tr.s]?.c ?? "#ffffff" });
+        case "missile":
+          if (chance(36)) this.fx.add({ k: "smoke", x, y, vx: rnd(-6, 6), vy: rnd(2, 10), drag: 0.5, max: rnd(0.8, 1.5), size: 2, grow: 8, color: "#d8d2c4", alpha: 0.3 });
           break;
-        case "drill":
-          if (under && chance(60)) debris(this.fx, x, gh, 1, b.debris, 120);
-          break;
-        case "saw":
-          if (cur.grounded.has(i) && chance(80)) {
-            this.fx.add({ k: "spark", x, y: y - 3, vx: -Math.sign(vx) * rnd(60, 200), vy: rnd(40, 180), g: 0.8, drag: 0.4, max: rnd(0.2, 0.4), size: 1, color: "#fff0a0" });
-            if (Math.random() < 0.4) debris(this.fx, x, y - 2, 1, b.debris, 110);
-          }
-          break;
-        case "roller":
-          if (cur.grounded.has(i) && chance(20)) this.fx.add({ k: "smoke", x, y: y - 3, vx: rnd(-8, 8), vy: rnd(4, 10), drag: 0.5, max: 0.8, size: 2, grow: 6, color: b.debris[0], alpha: 0.3 });
-          break;
-        case "seed":
-          if (cur.grounded.has(i)) {
-            if (chance(40)) {
-              const a = rnd(0, Math.PI * 2);
-              const h = rnd(0, 100);
-              this.fx.add({ k: "debris", x: x + Math.cos(a) * (6 + h * 0.3), y: gh + h, vx: -Math.sin(a) * 120, vy: rnd(40, 120), g: 0.4, drag: 0.5, max: 0.9, size: rnd(1, 2.4), color: b.debris[Math.floor(Math.random() * b.debris.length)], vr: 10 });
-            }
-            if (chance(14)) this.fx.add({ k: "smoke", x: x + rnd(-14, 14), y: gh + 2, vx: rnd(-20, 20), vy: rnd(10, 30), drag: 0.5, max: 1.2, size: 4, grow: 12, color: mix(b.debris[0], "#a09080", 0.5), alpha: 0.3 });
-          }
-          break;
-        case "pinball":
-          if (chance(30)) this.fx.add({ k: "glitter", x, y, vx: 0, vy: 0, max: 0.25, size: 1.2, color: "#b8e8ff" });
-          break;
-        case "blink":
-          if (chance(30)) this.fx.add({ k: "flash", x, y, size: 7, color: "#59fff0", max: 0.35 });
+        case "clod":
+          if (chance(14)) debris(this.fx, x, y, 1, b.debris, 30);
           break;
       }
     });
@@ -915,61 +741,6 @@ export class Scene {
     sc.beginPath();
     sc.arc(x, H - y + 2, r, 0, Math.PI * 2);
     sc.fill();
-  }
-
-  /** Continuous emitters for timed effects. */
-  private effectEmit(now: number, dt: number) {
-    for (const e of this.effects) {
-      const u = (now - e.start) / e.dur;
-      if (u < 0 || u > 1) continue;
-      const chance = (rate: number) => Math.random() < rate * dt;
-      switch (e.kind) {
-        case "flare-smoke":
-          if (chance(30)) this.fx.add({ k: "smoke", x: e.x + rnd(-2, 2), y: e.y + 4, vx: this.wind * 2.4 + rnd(-6, 6), vy: rnd(28, 52), drag: 0.6, max: rnd(1.6, 2.6), size: 3, grow: 10, color: Math.random() < 0.7 ? "#d8463a" : "#f07a5a", alpha: 0.5 });
-          break;
-        case "flare-summon":
-          if (chance(30)) this.fx.add({ k: "glitter", x: e.x + rnd(-160, 160), y: H - rnd(10, 30), vx: rnd(-10, 10), vy: rnd(-80, -30), max: 1.2, size: 1.4, color: "#d6b4ff" });
-          break;
-        case "well": {
-          const b = BIOME[this.look];
-          if (chance(70)) {
-            const a = rnd(0, Math.PI * 2);
-            const d = rnd(60, 160);
-            const px = e.x + Math.cos(a) * d;
-            const py = e.y + Math.sin(a) * d * 0.6;
-            // drift inward with a swirl
-            this.fx.add({ k: "debris", x: px, y: Math.max(py, heightAt(this.ground, px)), vx: (e.x - px) * 2.4 - Math.sin(a) * 90, vy: (e.y - py) * 2.4 + Math.cos(a) * 60, g: 0, drag: 1, max: 0.45, size: rnd(1.4, 3), color: b.debris[Math.floor(Math.random() * b.debris.length)], vr: 12 });
-          }
-          if (chance(20)) this.fx.add({ k: "glitter", x: e.x + rnd(-40, 40), y: e.y + rnd(-30, 30), vx: 0, vy: 0, max: 0.4, size: 1.4, color: "#c58cff" });
-          break;
-        }
-        case "quake": {
-          const k = 1 - u;
-          this.shake = Math.max(this.shake, 5 * k);
-          if (chance(30 * k)) {
-            const x = rnd(0, W);
-            const gh = heightAt(this.ground, x);
-            this.fx.add({ k: "smoke", x, y: gh + 2, vx: rnd(-10, 10), vy: rnd(6, 16), drag: 0.5, max: 1.4, size: 4, grow: 12, color: BIOME[this.look].debris[0], alpha: 0.28 });
-            if (Math.random() < 0.5) debris(this.fx, x, gh, 2, BIOME[this.look].debris, 80);
-          }
-          break;
-        }
-        case "mushroom": {
-          const rise = Math.min(1, u * 1.4);
-          const top = e.y + 40 + 190 * rise;
-          const hot = Math.max(0, 1 - u * 2.2);
-          for (let n = 0; n < 3; n++) {
-            if (!chance(40)) continue;
-            const stem = Math.random() < 0.45;
-            const px = stem ? e.x + rnd(-10, 10) : e.x + rnd(-70, 70) * (0.4 + rise * 0.6);
-            const py = stem ? e.y + rnd(0, top - e.y) : top + rnd(-18, 22);
-            if (hot > 0.15 && Math.random() < hot) this.fx.add({ k: "fire", x: px, y: py, vx: rnd(-10, 10), vy: rnd(10, 30), drag: 0.4, max: rnd(0.4, 0.8), size: rnd(8, 14), grow: 10, color: "#ff8a3a" });
-            else this.fx.add({ k: "smoke", x: px, y: py, vx: (stem ? 0 : (px - e.x) * 0.5) + this.wind, vy: stem ? rnd(30, 60) : rnd(-4, 10), drag: 0.6, max: rnd(1.6, 2.6), size: rnd(8, 14), grow: 10, color: mix("#7a5040", "#3a3432", Math.min(1, u * 1.5)), alpha: 0.55 });
-          }
-          break;
-        }
-      }
-    }
   }
 
   /* ================= ambience ================= */
@@ -1027,20 +798,12 @@ export class Scene {
     // ambient behind the ridge
     this.drawAmbient(ctx);
 
-    // timed effects that sit behind tanks
-    for (const e of this.effects) {
-      const u = (now - e.start) / e.dur;
-      if (u < 0 || u > 1) continue;
-      if (e.kind === "storm") drawStorm(ctx, e.x, e.y, Math.min(1, u * 5, (1 - u) * 5), this.boltFlicker(now), this.time);
-      if (e.kind === "flare-summon") drawRift(ctx, e.x, u, this.time);
-      if (e.kind === "plane") {
-        const d = e.data as { x1: number; color: string };
-        drawPlane(ctx, e.x + (d.x1 - e.x) * u, e.y, Math.sign(d.x1 - e.x), d.color, this.time);
-      }
-    }
-
-    // the ridge
+    // the ridge, and any dirt still falling into a fresh hole
     this.drawGround(ctx, b);
+    this.drawFloats(ctx, b);
+
+    // tracer readings from earlier turns
+    this.drawTracers(ctx, now);
 
     // tanks
     for (const t of this.tanks.values()) {
@@ -1060,62 +823,53 @@ export class Scene {
         const p = tau >= tr.t0 && tau <= tr.t1 ? posAt(tr, tau) : null;
         return p !== null && p[1] > H + 4;
       }).length;
-      shot.rec.tracks.forEach((tr, i) => {
-        if (tau < tr.t0 || tau > tr.t1) return;
+      for (const tr of shot.rec.tracks) {
+        if (tau < tr.t0) continue;
+        // a tracer leaves its dotted path behind as it flies
+        if (tr.s === "tracer") {
+          const pts: [number, number][] = [];
+          for (let t = tr.t0; t <= Math.min(tau, tr.t1); t += 1) pts.push(posAt(tr, t)!);
+          drawDotted(ctx, pts, 0.7);
+        }
+        if (tau > tr.t1) continue;
         const p = posAt(tr, tau);
-        if (!p) return;
+        if (!p) continue;
         const q = posAt(tr, Math.max(tr.t0, tau - 1)) ?? p;
         const vx = (p[0] - q[0]) * TPS;
         const vy = (p[1] - q[1]) * TPS;
-        const grounded = cur.grounded.has(i);
-        if (tr.s === "seed" && grounded) {
-          drawTwister(ctx, p[0], heightAt(this.ground, Math.max(0, Math.min(W, p[0]))), this.time, tau - (cur.groundedAt.get(i) ?? tau));
-          return;
-        }
-        const tl = TRAIL[tr.s];
-        if (tl && !(grounded && (tr.s === "saw" || tr.s === "roller"))) {
+        const color = tr.c ?? "#ffffff";
+        const gh = p[0] >= 0 && p[0] <= W ? heightAt(this.ground, p[0]) : -999;
+        const under = p[1] < gh - 3;
+        if (!under && (tr.s === "bullet" || tr.s === "warhead" || tr.s === "missile")) {
           const pts: [number, number][] = [];
-          for (let j = tl.len; j >= 0; j--) {
-            const pp = posAt(tr, tau - j * 0.8);
-            if (pp && tau - j * 0.8 >= tr.t0) pts.push(pp);
+          for (let j = 7; j >= 0; j--) {
+            const t = tau - j;
+            if (t >= tr.t0) pts.push(posAt(tr, t)!);
           }
-          drawTrail(ctx, tr.s, pts);
+          drawTail(ctx, pts, color, tr.s === "warhead" ? 1.4 : 2.2);
         }
-        drawHead(ctx, tr.s, p[0], p[1], vx, vy, tau - tr.t0, this.time, grounded);
-        if (p[1] > H + 4) this.drawOffscreen(ctx, p[0], p[1], TRAIL[tr.s]?.c ?? "#ffffff", above <= 2);
-      });
+        drawHead(ctx, tr.s, color, p[0], p[1], vx, vy, tau - tr.t0, this.time, under);
+        if (p[1] > H + 4) this.drawOffscreen(ctx, p[0], p[1], color, above <= 2);
+      }
+    }
+
+    // explosions
+    for (const e of this.effects) {
+      if (e.kind !== "blast") continue;
+      const u = (now - e.start) / e.dur;
+      if (u < 0 || u > 1) continue;
+      drawBlast(ctx, e.x, e.y, e.r ?? 20, u, e.pal ?? PALETTE.fire, this.time);
     }
 
     // glows
     this.fx.drawGlow(ctx, this.time);
 
-    // timed effects that glow over everything
+    // zaps and silk
     for (const e of this.effects) {
       const u = (now - e.start) / e.dur;
       if (u < 0 || u > 1) continue;
-      if (e.kind === "beam") {
-        const d = e.data as { pts: number[]; fx: "lance" | "prism" | "orbital"; len: number };
-        const ms = now - e.start;
-        const speed = d.fx === "prism" ? 45 : d.fx === "orbital" ? 120 : 400;
-        const reveal = (ms / MS_PER_TICK) * speed;
-        const a = u < 0.6 ? 1 : (1 - u) / 0.4;
-        drawBeam(ctx, d.pts, d.fx, reveal, a, this.time);
-      }
-      if (e.kind === "bolt") {
-        const d = e.data as { x1: number; y1: number; x2: number; y2: number; seed: number };
-        const flick = Math.floor((now - e.start) / 45);
-        drawBolt(ctx, boltPath(d.x1, d.y1, d.x2, d.y2, d.seed, flick), 1 - u * u);
-      }
-      if (e.kind === "well") drawWell(ctx, e.x, e.y, u, this.time);
-      if (e.kind === "flare-target") drawTarget(ctx, e.x, e.y, u, this.time);
-      if (e.kind === "flare-smoke") {
-        const blink = Math.floor(this.time * 6) % 2 ? 1 : 0.5;
-        ctx.globalCompositeOperation = "lighter";
-        ctx.globalAlpha = blink;
-        ctx.drawImage(soft("#ff3a2a"), e.x - 14, Y(e.y + 4) - 14, 28, 28);
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = "source-over";
-      }
+      if (e.kind === "zap") drawZap(ctx, e.x, e.y, e.x2!, e.y2!, u < 0.7 ? 1 : (1 - u) / 0.3, (e.seed ?? 0) + Math.floor((now - e.start) / 50));
+      if (e.kind === "web") drawSilk(ctx, e.x, e.y, e.x2!, e.y2!, Math.min(1, (now - e.start) / 120), u < 0.75 ? 0.85 : ((1 - u) / 0.25) * 0.85);
     }
 
     // aim guide + pull line
@@ -1139,12 +893,6 @@ export class Scene {
       ctx.fillRect(0, 0, cw, ch);
       ctx.globalAlpha = 1;
     }
-  }
-
-  private boltFlicker(now: number): number {
-    let f = 0;
-    for (const e of this.effects) if (e.kind === "bolt" && now < e.start + e.dur) f = Math.max(f, 1 - (now - e.start) / e.dur);
-    return f;
   }
 
   private drawSkyLife(ctx: CanvasRenderingContext2D) {
@@ -1286,6 +1034,62 @@ export class Scene {
       ctx.beginPath();
       this.surfacePath(ctx, 0);
       ctx.stroke();
+    }
+  }
+
+  /** Dirt hanging over a fresh hole, mid-fall: drawn as columns cut from the same rock. */
+  private drawFloats(ctx: CanvasRenderingContext2D, b: (typeof BIOME)[Look]) {
+    if (!this.floats.size) return;
+    ctx.save();
+    ctx.beginPath();
+    for (const [i, f] of this.floats) ctx.rect(i * COL - 0.2, Y(f.y + f.len), COL + 0.4, f.len);
+    ctx.clip();
+    if (this.rock) ctx.drawImage(this.rock, 0, 0, W, H);
+    if (this.scorch) ctx.drawImage(this.scorch, 0, 0, W, H);
+    ctx.restore();
+    ctx.fillStyle = b.lip;
+    for (const [i, f] of this.floats) ctx.fillRect(i * COL - 0.2, Y(f.y + f.len), COL + 0.4, 2.4);
+  }
+
+  /** Each tank's last Tracer: the dotted paths and the angle change written where each bullet landed. */
+  private drawTracers(ctx: CanvasRenderingContext2D, now: number) {
+    void now;
+    for (const p of this.tracerPaths) drawDotted(ctx, p.pts, 0.4);
+    if (!this.marks.length) return;
+    const fs = this.uiFont(10);
+    ctx.font = `${fs}px ${this.font}`;
+    ctx.textAlign = "center";
+    // landings bunch up, so stack the labels into lanes that never overlap
+    const lanes: number[] = [];
+    const placed = [...this.marks]
+      .sort((a, b) => a.x - b.x)
+      .map((m) => {
+        const text = m.label === "0" ? "0°" : `${m.label}°`;
+        const w = ctx.measureText(text).width + fs * 0.8;
+        let lane = 0;
+        while (lane < lanes.length && lanes[lane] > m.x - w / 2 - 2) lane++;
+        lanes[lane] = m.x + w / 2;
+        return { m, text, w, lane };
+      });
+    for (const { m, text, w, lane } of placed) {
+      const col = TANK[this.tanks.get(m.seat)?.color ?? "red"].light;
+      const ly = Y(m.y) - fs * 2.2 - lane * fs * 1.6;
+      ctx.strokeStyle = withAlpha(col, 0.5);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(m.x, Y(m.y));
+      ctx.lineTo(m.x, ly + fs * 0.35);
+      ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(m.x, Y(m.y), 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(8,8,10,0.72)";
+      ctx.beginPath();
+      ctx.roundRect?.(m.x - w / 2, ly - fs * 0.95, w, fs * 1.35, fs * 0.4);
+      ctx.fill();
+      ctx.fillStyle = col;
+      ctx.fillText(text, m.x, ly + fs * 0.05);
     }
   }
 

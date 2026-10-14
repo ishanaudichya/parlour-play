@@ -151,23 +151,24 @@ export function TanksRulesModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="mt-4 space-y-4">
-          <Rule title="The draft">
-            A pool of weapons is opened on the table. Take turns — snake order — claiming one at a time until every arsenal is
-            full: ten each for two tanks, seven for three, six for four. Utility pieces (dirt, walls, the teleporter) score
-            nothing but can win you the war.
+          <Rule title="Weapon selection">
+            The arsenal is Pocket Tanks&apos; original 30. A pool of them is laid out and you take turns — snake order — picking
+            one at a time until every arsenal is full: ten each for two tanks, seven for three, six for four. Hit Random for
+            any pick, or let the rest of your picks be made at random. Dirt pieces (Dirtball, Magic Wall, Dirt Slinger, Dirt
+            Mover, Mountain Mover) and the Tracer score nothing but can win you the war.
           </Rule>
           <Rule title="Firing">
             On your turn, set the angle and power, load a weapon and fire. The barrel turns a full circle — you can fire
             straight down off a ledge. Drag on the field to point it, or use the sliders. Every weapon fires exactly once.
-            Your power and weapon stay hidden from the others until you fire. Wind changes every turn.
+            Your power and weapon stay hidden from the others until you fire. There&apos;s no wind — fire a Tracer and its five
+            bullets mark how much to change your angle.
           </Rule>
           <Rule title="Scoring">
             Every point of damage you deal is a point for you. Hit yourself and it comes off your score. Tanks never die —
             when the last weapon has flown, the highest score wins. A level score is a stalemate.
           </Rule>
           <Rule title="The ground">
-            Explosions dig craters and whatever is above falls in. Tanks drop with the dirt, and a long fall hurts — that
-            damage scores for whoever caused it.
+            Explosions dig craters and whatever is above falls in. Tanks drop with the dirt — falling never costs points.
           </Rule>
           <Rule title="Driving">
             Four drives per game, about a tank-length each. You can drive and still fire the same turn. Tanks can&apos;t climb

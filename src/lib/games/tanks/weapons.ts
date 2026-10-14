@@ -1,94 +1,87 @@
-/* The armoury. Metadata only — what each weapon is called, what it promises,
-   how hard it hits — safe for the client. What each one actually DOES lives
-   in sim.ts, keyed by the same id. */
+/* The armoury: Pocket Tanks' original 30 — the pack every version of the game
+   ships with — under their own names, each with BlitWise's own one-line
+   description. Metadata only, safe for the client; what each one actually
+   DOES lives in sim.ts, keyed by the same id. */
 
 export const WEAPON_IDS = [
-  "shell",
-  "howitzer",
-  "sun",
-  "trident",
-  "fan",
-  "hydra",
-  "mirv",
-  "cluster",
-  "daisy",
-  "roller",
-  "pinball",
-  "tunneler",
-  "sinkhole",
-  "lance",
-  "prism",
-  "napalm",
-  "acid",
-  "thunder",
-  "airraid",
-  "meteors",
-  "skyspear",
-  "singularity",
-  "tremor",
-  "volcano",
-  "mudpie",
-  "rampart",
-  "blink",
-  "seeker",
-  "boomerang",
-  "buzzsaw",
-  "fireworks",
-  "gatling",
+  "single",
+  "big",
+  "three",
+  "five",
   "jackhammer",
-  "twister",
+  "heatseeker",
+  "tracer",
+  "piledriver",
+  "dirtmover",
+  "crazyivan",
+  "spider",
+  "sniper",
+  "magicwall",
+  "dirtslinger",
+  "zapper",
+  "napalm",
+  "hailstorm",
+  "groundhog",
+  "worm",
+  "homingworm",
+  "skipper",
+  "chainreaction",
+  "pineapple",
+  "firecracker",
+  "homingmissile",
+  "dirtball",
+  "tommygun",
+  "mountainmover",
+  "scattershot",
+  "cruiser",
 ] as const;
 
 export type WeaponId = (typeof WEAPON_IDS)[number];
 
-export type WeaponFamily = "blast" | "scatter" | "ground" | "beam" | "sky" | "chaos" | "utility";
+export type WeaponFamily = "blast" | "scatter" | "ground" | "beam" | "chaos" | "utility";
 
 export interface WeaponMeta {
   name: string;
-  /** one line for the draft card */
+  /** the official one-liner */
   blurb: string;
   family: WeaponFamily;
   /** 0–5 — how much it tends to score, for the card pips and the auto-drafter */
   punch: number;
-  /** signature colour for its icon and its card */
+  /** signature colour: its bullet, its icon, its card */
   hue: string;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponMeta> = {
-  shell: { name: "Field Shell", blurb: "Plain, honest high explosive.", family: "blast", punch: 2, hue: "#d9a35b" },
-  howitzer: { name: "Howitzer", blurb: "A heavier shell and a deeper crater.", family: "blast", punch: 3, hue: "#e07b39" },
-  sun: { name: "Little Sun", blurb: "A pocket star. Mind the mushroom.", family: "blast", punch: 5, hue: "#ffd34d" },
-  trident: { name: "Trident", blurb: "Three shells, fanned tight.", family: "scatter", punch: 3, hue: "#7fc8ff" },
-  fan: { name: "Fan of Five", blurb: "Five shells spread like a hand of cards.", family: "scatter", punch: 3, hue: "#5aa9e6" },
-  hydra: { name: "Hydra", blurb: "Splits into three heads at the top of its arc.", family: "scatter", punch: 4, hue: "#59d68c" },
-  mirv: { name: "Starfall", blurb: "Peaks, then lets six warheads rain down.", family: "scatter", punch: 4, hue: "#b388ff" },
-  cluster: { name: "Cluster Bomb", blurb: "Lands, bursts, and flings six bomblets.", family: "scatter", punch: 3, hue: "#ff8f5a" },
-  daisy: { name: "Firecracker", blurb: "A string of pops marching along the ground.", family: "ground", punch: 3, hue: "#ff5d5d" },
-  roller: { name: "Roller", blurb: "Lands, then rolls downhill until it finds you.", family: "ground", punch: 3, hue: "#c9c2b0" },
-  pinball: { name: "Pinball", blurb: "Bounces five times, popping on every hit.", family: "ground", punch: 3, hue: "#e8e8f0" },
-  tunneler: { name: "Mole", blurb: "Burrows through the hill, then goes off.", family: "ground", punch: 3, hue: "#b07d4f" },
-  sinkhole: { name: "Sinkhole", blurb: "Drills down and pulls the floor out.", family: "ground", punch: 3, hue: "#8f6a46" },
-  lance: { name: "Sun Lance", blurb: "A straight beam. Ignores gravity, wind and hills.", family: "beam", punch: 3, hue: "#ff4f6d" },
-  prism: { name: "Prism", blurb: "A laser that ricochets off the ground.", family: "beam", punch: 3, hue: "#62f0ff" },
-  napalm: { name: "Napalm", blurb: "Sticky fire that runs downhill and burns.", family: "chaos", punch: 4, hue: "#ff7a1a" },
-  acid: { name: "Acid Rain", blurb: "Bursts into a cloud that rains corrosion.", family: "sky", punch: 3, hue: "#9bff3a" },
-  thunder: { name: "Thunderclap", blurb: "Summons a storm. Lightning seeks steel.", family: "sky", punch: 4, hue: "#8fb8ff" },
-  airraid: { name: "Air Raid", blurb: "Mark the spot; a bomber does the rest.", family: "sky", punch: 4, hue: "#c7d36f" },
-  meteors: { name: "Meteor Call", blurb: "Eight rocks out of a clear sky.", family: "sky", punch: 4, hue: "#ff9d5c" },
-  skyspear: { name: "Sky Spear", blurb: "Paints a target for the satellite.", family: "beam", punch: 4, hue: "#6fd3ff" },
-  singularity: { name: "Singularity", blurb: "Swallows the ground and drags tanks in.", family: "chaos", punch: 4, hue: "#a35bff" },
-  tremor: { name: "Tremor", blurb: "Shakes the whole range. Everyone feels it.", family: "chaos", punch: 3, hue: "#c4a46b" },
-  volcano: { name: "Volcano", blurb: "Raises a cone, then spits lava.", family: "chaos", punch: 4, hue: "#ff4a2a" },
-  mudpie: { name: "Mud Pie", blurb: "A ball of earth. Bury, block, rebuild.", family: "utility", punch: 0, hue: "#a07a50" },
-  rampart: { name: "Rampart", blurb: "Throws up a wall where it lands.", family: "utility", punch: 0, hue: "#9c8f7a" },
-  blink: { name: "Blink Drive", blurb: "Teleports your tank to where it lands.", family: "utility", punch: 0, hue: "#59fff0" },
-  seeker: { name: "Seeker", blurb: "Peaks, locks on, and steers itself home.", family: "blast", punch: 4, hue: "#ff6262" },
-  boomerang: { name: "Boomerang", blurb: "Curls back toward you mid-flight.", family: "blast", punch: 3, hue: "#f2c14e" },
-  buzzsaw: { name: "Buzzsaw", blurb: "Lands spinning and grinds a trench.", family: "ground", punch: 3, hue: "#d8dde6" },
-  fireworks: { name: "Fireworks", blurb: "Bursts into fourteen falling stars.", family: "scatter", punch: 3, hue: "#ff6bd6" },
-  gatling: { name: "Gatling", blurb: "Twelve rounds, as fast as it can spin.", family: "scatter", punch: 3, hue: "#ffe066" },
-  jackhammer: { name: "Jackhammer", blurb: "Bounces in place, digging deeper each time.", family: "ground", punch: 3, hue: "#9aa3ad" },
-  twister: { name: "Twister", blurb: "A tornado that tosses tanks aside.", family: "chaos", punch: 3, hue: "#bcd4e6" },
+  single: { name: "Single Shot", blurb: "The default weapon, medium sized explosion and good points.", family: "blast", punch: 3, hue: "#ffe082" },
+  big: { name: "Big Shot", blurb: "Large explosion radius, but points are low.", family: "blast", punch: 2, hue: "#ffb74d" },
+  three: { name: "3 Shot", blurb: "3 bullet spread, medium explosion size, low points per explosion.", family: "scatter", punch: 3, hue: "#81d4fa" },
+  five: { name: "5 Shot", blurb: "5 bullet spread, medium explosion size, very low points per explosion.", family: "scatter", punch: 3, hue: "#4fc3f7" },
+  jackhammer: { name: "Jackhammer", blurb: "Bullet bounces straight up 5 times… lots of fun to use.", family: "ground", punch: 4, hue: "#ff8a65" },
+  heatseeker: { name: "Heatseeker", blurb: "If the bullet gets close to the opponent's tank, it flies toward it.", family: "blast", punch: 3, hue: "#ff5252" },
+  tracer: { name: "Tracer", blurb: "Fires a spread of 5 bullets that tell you how much to change your angle for the next turn.", family: "utility", punch: 0, hue: "#e0e0e0" },
+  piledriver: { name: "Pile Driver", blurb: "Small amount of damage, but explosions are directed down creating a hole.", family: "ground", punch: 1, hue: "#bcaaa4" },
+  dirtmover: { name: "Dirt Mover", blurb: "Directional dirt removal based on the angle when fired.", family: "utility", punch: 0, hue: "#a1887f" },
+  crazyivan: { name: "Crazy Ivan", blurb: "Proximity-based multi-warhead with unusual yet fun results.", family: "chaos", punch: 3, hue: "#ea80fc" },
+  spider: { name: "Spider", blurb: "Spider web effect that sprays the closest tank when it goes off.", family: "chaos", punch: 3, hue: "#f5f5f5" },
+  sniper: { name: "Sniper Rifle", blurb: "No explosion radius, large points, throws the tank nicely, deadly.", family: "blast", punch: 4, hue: "#90a4ae" },
+  magicwall: { name: "Magic Wall", blurb: "Vertical wall will grow where the bullet lands.", family: "utility", punch: 0, hue: "#b388ff" },
+  dirtslinger: { name: "Dirt Slinger", blurb: "V-shape dirt effect based on location where bullet lands.", family: "utility", punch: 0, hue: "#8d6e63" },
+  zapper: { name: "Zapper", blurb: "Laser beam emits from bullet if it gets close to tank.", family: "beam", punch: 3, hue: "#40c4ff" },
+  napalm: { name: "Napalm", blurb: "Exploding liquid that covers and burns everything caught in its wake.", family: "chaos", punch: 4, hue: "#ff6d00" },
+  hailstorm: { name: "Hail Storm", blurb: "Hundreds of bouncing ice pellets that flow along the ground.", family: "chaos", punch: 3, hue: "#b3e5fc" },
+  groundhog: { name: "Ground Hog", blurb: "Ground weapon that tunnels through the dirt and explodes on other side.", family: "ground", punch: 3, hue: "#c0ca33" },
+  worm: { name: "Worm", blurb: "Ground weapon that tunnels through dirt, but tries to dig upward.", family: "ground", punch: 3, hue: "#f48fb1" },
+  homingworm: { name: "Homing Worm", blurb: "Same as worm, but stops when it passes under tank and rises upward.", family: "ground", punch: 4, hue: "#f06292" },
+  skipper: { name: "Skipper", blurb: "Skips a number of times before exploding.", family: "ground", punch: 3, hue: "#80cbc4" },
+  chainreaction: { name: "Chain Reaction", blurb: "Random explosions in the general area where the bullet landed.", family: "scatter", punch: 3, hue: "#ffca28" },
+  pineapple: { name: "Pineapple", blurb: "Shell explodes when close to a tank, emitting a large number of tiny explosions.", family: "scatter", punch: 3, hue: "#d4e157" },
+  firecracker: { name: "Firecracker", blurb: "Horizontal spread of explosions based on where the bullet lands.", family: "scatter", punch: 3, hue: "#ff1744" },
+  homingmissile: { name: "Homing Missile", blurb: "Stops horizontal speed when it passes over a tank.", family: "blast", punch: 4, hue: "#ff7043" },
+  dirtball: { name: "Dirtball", blurb: "Dirt forms where bullet lands.", family: "utility", punch: 0, hue: "#795548" },
+  tommygun: { name: "Tommy Gun", blurb: "A very satisfying automatic machine gun-style weapon.", family: "scatter", punch: 3, hue: "#fff176" },
+  mountainmover: { name: "Mountain Mover", blurb: "Explosion removes dirt, but takes no points from tank.", family: "utility", punch: 0, hue: "#d7ccc8" },
+  scattershot: { name: "Scatter Shot", blurb: "5 bullets spread upward where bullet lands.", family: "scatter", punch: 3, hue: "#69f0ae" },
+  cruiser: { name: "Cruiser", blurb: "Bullet 'cruises' along terrain for a few seconds before exploding.", family: "ground", punch: 3, hue: "#ffab40" },
 };
 
 export const isWeapon = (id: unknown): id is WeaponId => typeof id === "string" && id in WEAPONS;

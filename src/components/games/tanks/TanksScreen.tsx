@@ -3,7 +3,7 @@
 /* Pocket Tanks — an artillery duel on a destructible ridge. The draft is its
    own screen; once arsenals are full the battlefield takes over: a canvas the
    Scene paints and replays, with deliberately quiet chrome around it
-   (scoreboard, wind, banner, a single control strip).
+   (scoreboard, banner, a single control strip).
 
    As in every game here, what the screen SAYS comes from `shown` — the view
    the Scene hands back once a shot has finished landing — so scores and
@@ -42,9 +42,9 @@ function logLine(l: TanksLogEntry): string {
   const w = l.weapon ? WEAPONS[l.weapon as WeaponId]?.name ?? l.weapon : "";
   switch (l.kind) {
     case "start":
-      return `The crates are open — ${l.actor} picks first`;
+      return `Weapon selection — ${l.actor} picks first`;
     case "pick":
-      return `${l.actor} claims the ${w}`;
+      return l.n ? `${l.actor} picks at random — the ${w}` : `${l.actor} picks the ${w}`;
     case "draft_done":
       return "Arsenals full. Load up.";
     case "fire":
@@ -97,17 +97,6 @@ function ScorePlate({ p, score, active, you, wins }: { p: TanksViewPlayer; score
   );
 }
 
-function WindTag({ wind, lunar }: { wind: number; lunar: boolean }) {
-  const mag = Math.abs(wind);
-  return (
-    <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ background: "rgba(10,11,13,0.55)", color: TEXT_2, backdropFilter: "blur(4px)" }}>
-      <span style={{ color: TEXT_3 }}>Wind</span>
-      <span className="tabular-nums" style={{ color: TEXT }}>
-        {lunar ? "none" : mag === 0 ? "calm" : `${wind < 0 ? "←" : "→"} ${mag}`}
-      </span>
-    </div>
-  );
-}
 
 /* ==================== screen ==================== */
 
@@ -229,13 +218,17 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
     [canFire, me, move]
   );
   const pick = useCallback(
-    (w: WeaponId) => {
+    (w: WeaponId | "random") => {
       if (!canPick) return;
       tanksSfx("pick");
       move({ type: "pick", weapon: w } satisfies TanksMove);
     },
     [canPick, move]
   );
+  const autoDraftMe = useCallback(() => {
+    tanksSfx("pick");
+    move({ type: "autodraft" } satisfies TanksMove);
+  }, [move]);
 
   // keyboard: subscribe once per turn, always call the latest handler
   const onKey = (e: KeyboardEvent) => {
@@ -354,7 +347,7 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
           Pocket Tanks
         </h1>
         <div className="mt-1 truncate text-[11px]" style={{ color: TEXT_3 }}>
-          {d.phase === "draft" ? "Draft" : `${biome.label} · shot ${Math.min(d.shots + (d.phase === "over" ? 0 : 1), d.totalShots)} of ${d.totalShots}${d.gravity !== 1 ? " · low gravity" : ""}`}
+          {d.phase === "draft" ? "Draft" : `${biome.label} · shot ${Math.min(d.shots + (d.phase === "over" ? 0 : 1), d.totalShots)} of ${d.totalShots}`}
           {spectating ? " · spectating" : ""}
         </div>
       </div>
@@ -412,7 +405,7 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
       <AnimatePresence mode="wait" initial={false}>
         {d.phase === "draft" ? (
           <motion.div key="draft" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
-            <DraftScreen v={v} youId={youId} canPick={canPick} onPick={pick} nowEst={nowEst} />
+            <DraftScreen v={v} youId={youId} canPick={canPick} onPick={pick} onAuto={autoDraftMe} seated={!spectating && !!me && !me.left} nowEst={nowEst} />
           </motion.div>
         ) : (
           <motion.main key="battle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: SWIFT }} className="mx-auto w-full max-w-[1180px] flex-1 px-2 pb-6 sm:px-4">
@@ -432,7 +425,6 @@ export function TanksScreen(props: GameScreenProps<TanksView>) {
                       {banner}
                     </motion.div>
                   </AnimatePresence>
-                  <WindTag wind={busy && v.lastShot ? v.lastShot.wind : d.wind} lunar={d.biome === "lunar"} />
                 </div>
 
                 <AnimatePresence>
