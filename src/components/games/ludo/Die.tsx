@@ -68,7 +68,7 @@ export function DieTray({
         disabled={!canRoll}
         onClick={onRoll}
         aria-label={canRoll ? "Roll the die" : "Die"}
-        className="relative flex h-[132px] w-[132px] items-center justify-center rounded-full outline-none"
+        className="relative flex h-[112px] w-[112px] items-center justify-center rounded-full outline-none sm:h-[132px] sm:w-[132px]"
         style={{
           background: "radial-gradient(circle at 50% 40%, #3a2820 0%, #24170f 60%, #1b110b 100%)",
           boxShadow: `inset 0 6px 16px rgba(0,0,0,0.65), 0 0 0 3px ${BRASS}, 0 0 0 5px ${BRASS_LIGHT}33, 0 12px 30px rgba(0,0,0,0.55)${

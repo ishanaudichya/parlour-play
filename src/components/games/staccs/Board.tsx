@@ -50,6 +50,7 @@ export function Board({
   holding,
   holdingRot,
   wildPreview,
+  pxH = 0,
 }: {
   board: BoardCard[];
   bounds: Bounds;
@@ -66,13 +67,17 @@ export function Board({
   holding: Card | null;
   holdingRot: number;
   wildPreview: { v: V; rot: number; called: Suit | null } | null;
+  /** the table's rendered height in CSS px, so a big screen shows more table rather than bigger cubes */
+  pxH?: number;
 }) {
   const pad = 0.5;
   const full = { x: -bounds.x - pad, y: bounds.top - pad, w: bounds.x * 2 + pad * 2, h: bounds.bottom - bounds.top + pad * 2 };
 
   // the camera frames the STACC (and wherever the held card could go), keeps
-  // the table's aspect, never zooms in tighter than ~11 card-radii, and eases
+  // the table's aspect, never zooms in tighter than ~11 card-radii (nor past
+  // ~58px a radius, so a cube tops out near 115px on a big screen), and eases
   // out toward the whole table as the structure grows
+  const minSpan = Math.max(11, pxH / 58);
   const vb = useMemo(() => {
     const pts: [number, number][] = [...board.map((b) => toXY(b.v)), ...ghosts.map((g) => toXY(g.v))];
     let x0 = Math.min(...pts.map((p) => p[0])) - 0.9;
@@ -85,8 +90,8 @@ export function Board({
     y0 -= margin;
     y1 += margin;
     const aspect = full.w / full.h;
-    let w = Math.max(x1 - x0, 11 * aspect);
-    let h = Math.max(y1 - y0, 11);
+    let w = Math.max(x1 - x0, minSpan * aspect);
+    let h = Math.max(y1 - y0, minSpan);
     if (w / h > aspect) h = w / aspect;
     else w = h * aspect;
     w = Math.min(w, full.w);
@@ -94,7 +99,7 @@ export function Board({
     const cx = Math.min(Math.max((x0 + x1) / 2, full.x + w / 2), full.x + full.w - w / 2);
     const cy = Math.min(Math.max((y0 + y1) / 2, full.y + h / 2), full.y + full.h - h / 2);
     return { x: cx - w / 2, y: cy - h / 2, w, h };
-  }, [board, ghosts, full.x, full.y, full.w, full.h]);
+  }, [board, ghosts, minSpan, full.x, full.y, full.w, full.h]);
 
   // what the latest card matched
   const flash = useMemo(() => {

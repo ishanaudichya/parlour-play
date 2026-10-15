@@ -1,13 +1,19 @@
 "use client";
 
 /* The canvas host. Owns the animation loop and the sizing; the Scene owns
-   everything drawn. When it is your shot you can aim right on the field:
-   press anywhere and drag — the barrel swings to point at your finger, all
-   the way round. Power stays on the console. */
+   everything drawn. The host takes whatever room its parent gives it and
+   fits the largest field of the world's proportions inside — bounded by
+   width AND height, so the ridge is as big as the screen allows without
+   ever pushing the page into a scroll. When it is your shot you can aim
+   right on the field: press anywhere and drag — the barrel swings to point
+   at your finger, all the way round. Power stays on the console. */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { H, W } from "@/lib/games/tanks/terrain";
 import type { Scene } from "./scene";
+
+/** Past this the field stops growing — huge monitors get a big ridge, not a mural. */
+const MAX_W = 1760;
 
 export function Battlefield({
   scene,
@@ -16,6 +22,10 @@ export function Battlefield({
   mySeat,
   angle,
   onAim,
+  onFit,
+  className = "",
+  boxStyle,
+  frameStyle,
   children,
 }: {
   scene: Scene;
@@ -24,22 +34,42 @@ export function Battlefield({
   mySeat: number | null;
   angle: number;
   onAim: (angle: number, done: boolean) => void;
+  /** the fitted field width in CSS px, so the chrome around it can line up */
+  onFit?: (w: number) => void;
+  /** classes for the outer box — give it room (e.g. flex-1 min-h-0) */
+  className?: string;
+  boxStyle?: React.CSSProperties;
+  /** style for the fitted frame (border, radius) */
+  frameStyle?: React.CSSProperties;
   children?: React.ReactNode;
 }) {
-  const wrap = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const cvs = useRef<HTMLCanvasElement>(null);
   const dragging = useRef(false);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const fitCb = useRef(onFit);
+  useEffect(() => {
+    fitCb.current = onFit;
+  });
 
-  // attach + loop + resize
+  // attach + loop + fit
   useEffect(() => {
     const c = cvs.current;
-    const w = wrap.current;
-    if (!c || !w) return;
+    const b = box.current;
+    if (!c || !b) return;
     scene.attach(c, font);
-    const fit = () => scene.resize(w.clientWidth, Math.min(2.5, window.devicePixelRatio || 1));
+    let last = -1;
+    const fit = () => {
+      const w = Math.floor(Math.max(0, Math.min(b.clientWidth, (b.clientHeight * W) / H, MAX_W)));
+      if (w === last) return;
+      last = w;
+      setSize({ w, h: Math.round((w * H) / W) });
+      scene.resize(w, Math.min(2.5, window.devicePixelRatio || 1));
+      fitCb.current?.(w);
+    };
     fit();
     const ro = new ResizeObserver(fit);
-    ro.observe(w);
+    ro.observe(b);
     let raf = 0;
     const loop = (t: number) => {
       scene.frame(t);
@@ -68,29 +98,34 @@ export function Battlefield({
   };
 
   return (
-    <div ref={wrap} className="relative w-full select-none" style={{ aspectRatio: `${W} / ${H}`, touchAction: canAim ? "none" : "auto" }}>
-      <canvas
-        ref={cvs}
-        className="absolute inset-0 h-full w-full"
-        style={{ cursor: canAim ? "crosshair" : "default" }}
-        onPointerDown={(e) => {
-          if (!canAim) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          aimAt(e.clientX, e.clientY, false);
-        }}
-        onPointerMove={(e) => {
-          if (!canAim || !dragging.current) return;
-          aimAt(e.clientX, e.clientY, false);
-        }}
-        onPointerUp={(e) => {
-          if (!canAim || !dragging.current) return;
-          aimAt(e.clientX, e.clientY, true);
-        }}
-        onPointerCancel={() => {
-          dragging.current = false;
-        }}
-      />
-      {children}
+    <div ref={box} className={`flex min-h-0 min-w-0 items-center justify-center ${className}`} style={boxStyle}>
+      <div
+        className="relative shrink-0 select-none overflow-hidden"
+        style={{ width: size?.w ?? 0, height: size?.h ?? 0, touchAction: canAim ? "none" : "auto", ...frameStyle }}
+      >
+        <canvas
+          ref={cvs}
+          className="absolute inset-0 h-full w-full"
+          style={{ cursor: canAim ? "crosshair" : "default" }}
+          onPointerDown={(e) => {
+            if (!canAim) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            aimAt(e.clientX, e.clientY, false);
+          }}
+          onPointerMove={(e) => {
+            if (!canAim || !dragging.current) return;
+            aimAt(e.clientX, e.clientY, false);
+          }}
+          onPointerUp={(e) => {
+            if (!canAim || !dragging.current) return;
+            aimAt(e.clientX, e.clientY, true);
+          }}
+          onPointerCancel={() => {
+            dragging.current = false;
+          }}
+        />
+        {children}
+      </div>
     </div>
   );
 }

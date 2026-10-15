@@ -97,6 +97,10 @@ function startGame(s: PartyState, memberId: string, type: GameType, now: number,
     tallied: false,
   };
   s.phase = "game";
+  // back in the lobby, the shelf opens on the game just played
+  s.spotlight = { game: type, spin: false, n: (s.spotlight?.n ?? 0) + 1 };
+  // the vote was for this game; the next lobby votes afresh
+  s.votes = {};
   log(s, "game_start", { game: type });
 }
 
@@ -116,6 +120,22 @@ export function applyPartyMove(
       case "start_game":
         startGame(s, memberId, move.game, now, rng, registry);
         return;
+      case "spotlight": {
+        if (memberId !== s.hostId) err("Only the host picks the game.");
+        if (s.phase !== "lobby") err("A game is already on.");
+        if (move.game !== null && !registry[move.game]) err("That game isn't available.");
+        const n = (s.spotlight?.n ?? 0) + 1;
+        s.spotlight = move.game ? { game: move.game, spin: !!move.spin, n } : null;
+        return;
+      }
+      case "vote": {
+        if (s.phase !== "lobby") err("Votes are for the lobby.");
+        if (move.game !== null && !registry[move.game]) err("That game isn't available.");
+        const votes = (s.votes ??= {});
+        if (move.game) votes[memberId] = move.game;
+        else delete votes[memberId];
+        return;
+      }
       case "end_game": {
         if (memberId !== s.hostId) err("Only the host can end the game.");
         if (!s.game) err("No game is running.");
@@ -135,6 +155,7 @@ export function applyPartyMove(
           }
         }
         s.members = s.members.filter((m) => m.id !== memberId);
+        if (s.votes) delete s.votes[memberId];
         log(s, "leave", { member: member.name });
         if (s.hostId === memberId && s.members.length > 0) {
           s.hostId = s.members[0].id;
@@ -186,6 +207,8 @@ export function redactParty(s: PartyState, viewerId: string, now: number, regist
       : null,
     tallies: s.tallies,
     log: s.log.slice(-30),
+    spotlight: s.spotlight ?? null,
+    votes: s.votes ?? {},
     version: s.version,
     now,
   };

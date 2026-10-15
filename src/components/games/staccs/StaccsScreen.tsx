@@ -8,7 +8,8 @@
    direction (only open ones are offered) and the suit to call. */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { getMutedServerSnapshot, getMutedSnapshot, primeSound, setMuted, subscribeMuted } from "@/lib/client/synthCore";
 import { boundsFor, legalSpots, openRotations, type V } from "@/lib/games/staccs";
 import { TURN_MS, type Card, type StaccsLogEntry, type StaccsMove, type StaccsView, type Suit } from "@/lib/games/staccs/types";
@@ -106,10 +107,10 @@ function Opponent({ p, seatColor, active, onCatch, canCatch }: { p: StaccsView["
   return (
     <motion.div
       layout
-      className="relative flex min-w-[132px] shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2"
+      className="relative flex min-w-[120px] shrink-0 items-center gap-2 rounded-2xl px-2.5 py-1.5 sm:min-w-[132px] sm:gap-2.5 sm:px-3 sm:py-2 sm:landscape:min-w-0"
       style={{ background: SURFACE, border: `1px solid ${active ? seatColor : LINE}`, boxShadow: active ? `0 0 0 3px ${seatColor}33` : undefined, opacity: p.left ? 0.4 : 1 }}
     >
-      <span className={`${pixel.className} flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[13px]`} style={{ background: seatColor, color: "#071233" }}>
+      <span className={`${pixel.className} flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[12px] sm:h-8 sm:w-8 sm:text-[13px]`} style={{ background: seatColor, color: "#071233" }}>
         {p.name.slice(0, 1).toUpperCase()}
       </span>
       <div className="min-w-0">
@@ -137,13 +138,87 @@ function Opponent({ p, seatColor, active, onCatch, canCatch }: { p: StaccsView["
   );
 }
 
+/* ---------------- fitting the table to the room ---------------- */
+
+/** past ~900px the cobalt stops reading as a table and starts reading as a wall */
+const MAX_TABLE = 900;
+/** the dock's cubes: a touch smaller on phones, five to a row */
+const CHIP_PHONE = 60;
+const CHIP = 68;
+
+/**
+ * The room is a column in portrait (the others, the table, your dock) and a
+ * row in landscape (the table, then a side panel holding the others and your
+ * dock) — CSS decides which; this reads the result and fits the table's
+ * aspect into what's left. In portrait the table also claims a floor — its
+ * full width-limited size, up to ~60% of the room — so a big hand scrolls in
+ * the dock instead of squeezing the STACC.
+ */
+function useTableFit(aspect: number) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const handRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ w: 0, h: 0, side: false, floor: 0, chip: CHIP });
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const stage = stageRef.current;
+    const panel = panelRef.current;
+    if (!body || !stage || !panel) return;
+    const px = (s: string) => parseFloat(s) || 0;
+    const measure = () => {
+      const cs = getComputedStyle(body);
+      const side = cs.flexDirection === "row";
+      const bw = body.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+      const bh = body.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
+      let W: number;
+      let H: number;
+      let floor = 0;
+      if (side) {
+        W = bw - panel.offsetWidth - px(cs.columnGap);
+        H = bh;
+      } else {
+        const ss = getComputedStyle(stage);
+        W = stage.clientWidth - px(ss.paddingLeft) - px(ss.paddingRight);
+        H = stage.clientHeight - px(ss.paddingTop) - px(ss.paddingBottom);
+        floor = Math.floor(Math.min(W / aspect, bh * 0.6, MAX_TABLE / aspect)) + px(ss.paddingTop) + px(ss.paddingBottom);
+      }
+      const w = Math.max(0, Math.floor(Math.min(W, H * aspect, MAX_TABLE)));
+      // side panel: four cubes to a row, whatever the panel's width (border box,
+      // so a scrollbar coming and going can't make the cubes flicker in size)
+      const hw = handRef.current?.offsetWidth ?? 0;
+      const chip = side
+        ? Math.max(52, Math.min(76, Math.floor(((hw - 3 * 8) / 4 - 8) / (Math.sqrt(3) / 2))))
+        : bw < 640
+          ? CHIP_PHONE
+          : CHIP;
+      setFit((f) => (f.w === w && f.side === side && f.floor === floor && f.chip === chip ? f : { w, h: Math.floor(w / aspect), side, floor, chip }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(body);
+    ro.observe(stage);
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, [aspect]);
+  return { bodyRef, stageRef, panelRef, handRef, fit };
+}
+
+/** a speaker, with or without its sound waves */
+function SoundIcon({ off }: { off: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" width={15} height={15} aria-hidden fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" fill="currentColor" stroke="none" />
+      {off ? <path d="M11 6l3.5 4M14.5 6L11 10" /> : <path d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.6 3.8a6 6 0 0 1 0 8.4" />}
+    </svg>
+  );
+}
+
 /* ==================== screen ==================== */
 
 export function StaccsScreen(props: GameScreenProps<StaccsView>) {
   const { view: v, party, youId, isHost, skew, spectating, move, playAgain, exitToLobby } = props;
   const nowEst = useNowEst(v.now, skew);
-  const stageRef = useRef<HTMLElement>(null);
-  const [stage, setStage] = useState({ w: 0, h: 0 });
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, getMutedServerSnapshot);
   const [rulesOpen, setRulesOpen] = useState(false);
 
@@ -241,23 +316,12 @@ export function StaccsScreen(props: GameScreenProps<StaccsView>) {
     document.title = myTurn ? "● Your turn — STACCS" : "STACCS";
   }, [myTurn]);
 
-  // the board takes exactly the room between the players and the dock
-  const aspect = (boundsFor(v.decks).x * 2 + 1) / (boundsFor(v.decks).bottom - boundsFor(v.decks).top + 1);
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    const fit = () => {
-      const cs = getComputedStyle(el);
-      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      const h = el.clientHeight;
-      const bw = Math.max(0, Math.min(w, h * aspect));
-      setStage({ w: Math.round(bw), h: Math.round(bw / aspect) });
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [aspect]);
+  // the board takes exactly the room the others and the dock leave it
+  const aspect = (bounds.x * 2 + 1) / (bounds.bottom - bounds.top + 1);
+  const { bodyRef, stageRef, panelRef, handRef, fit } = useTableFit(aspect);
+  const stage = fit;
+  // the draw pile in the table's corner grows with the table
+  const pileSize = Math.round(Math.min(60, Math.max(38, fit.w * 0.07)));
 
   /* --- the prompt ------------------------------------------------------ */
 
@@ -287,9 +351,15 @@ export function StaccsScreen(props: GameScreenProps<StaccsView>) {
   // the called suit matters only while the wild's own top is the open target
   const wildOnTop = v.lockFrom === v.board.length - 1 && v.board[v.lockFrom]?.card.rank === "W" ? v.board[v.lockFrom].called : null;
 
+  // down to one card and haven't called it: the button stays up, your turn or not
+  const lateUhOh = !!me && hand.length === 1 && !me.called && !me.left;
+  const chip = fit.chip;
+  // portrait: the dock grows to three rows of cubes (if the table leaves the room), then scrolls
+  const handMax = 3 * (chip + 8) + 2 * 8 + 16 + 4;
+
   return (
     <div
-      className="relative flex h-[100dvh] flex-col overflow-hidden"
+      className="relative flex h-dvh flex-col overflow-hidden"
       style={{
         background: `radial-gradient(90% 60% at 50% 0%, #1d3a9a 0%, ${PAGE} 65%)`,
         color: TEXT,
@@ -297,244 +367,288 @@ export function StaccsScreen(props: GameScreenProps<StaccsView>) {
       }}
       onPointerDown={primeSound}
     >
-      {/* header */}
-      <header className="flex items-center justify-between gap-3 px-3 pt-3 sm:px-5">
+      {/* header — rides above the game-over veil so the menu is always in reach */}
+      <header className="relative z-[55] flex shrink-0 items-center justify-between gap-3 px-3 pt-3 sm:px-5">
         <div className="min-w-0">
           <h1 className={`${pixel.className} text-[22px] leading-none tracking-[0.04em] sm:text-[26px]`} style={{ color: TEXT, textShadow: "0 3px 0 #0a1f6b" }}>
             STACCS
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-[11px]" style={{ color: TEXT_3 }}>
-            <span>{v.decks === 2 ? "Party · two decks" : "UH OH!"}</span>
-            <span>·</span>
+          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap text-[11px]" style={{ color: TEXT_3 }}>
+            <span className="max-sm:hidden">{v.decks === 2 ? "Party · two decks" : "UH OH!"}</span>
+            <span className="max-sm:hidden">·</span>
             <span>{v.order === 1 ? "↻ clockwise" : "↺ reversed"}</span>
             <span>·</span>
             <span>{v.board.length} stacked</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? "Unmute" : "Mute"} className="h-9 rounded-xl px-3 text-[13px]" style={{ border: `1px solid ${LINE}`, color: muted ? TEXT_3 : TEXT_2 }}>
-            {muted ? "Sound off" : "Sound on"}
+          <button
+            type="button"
+            onClick={() => setMuted(!muted)}
+            aria-label={muted ? "Unmute" : "Mute"}
+            title={muted ? "Sound off" : "Sound on"}
+            className="flex h-8 items-center gap-1.5 rounded-xl px-2 text-[13px] transition-colors hover:bg-white/5 sm:px-3"
+            style={{ border: `1px solid ${LINE}`, color: muted ? TEXT_3 : TEXT_2 }}
+          >
+            <SoundIcon off={muted} />
+            <span className="max-sm:hidden">{muted ? "Sound off" : "Sound on"}</span>
           </button>
-          <button type="button" onClick={() => setRulesOpen(true)} className="h-9 rounded-xl px-3 text-[13px] font-medium" style={{ border: `1px solid ${LINE}`, color: TEXT_2 }}>
+          <button type="button" onClick={() => setRulesOpen(true)} className="h-8 rounded-xl px-3 text-[13px] font-medium transition-colors hover:bg-white/5" style={{ border: `1px solid ${LINE}`, color: TEXT_2 }}>
             Rules
           </button>
+          <PartyMenu className="rounded-xl hover:bg-white/5" style={{ borderColor: LINE, color: TEXT_2 }} />
         </div>
       </header>
 
-      {/* the others */}
-      <div className="mt-3 flex gap-2 overflow-x-auto px-3 pb-3 sm:justify-center sm:px-5">
-        {opponents.map((p) => (
-          <Opponent key={p.id} p={p} seatColor={seatColor(p.seat)} active={v.turn === p.id && v.phase !== "over"} canCatch={!spectating && !!me && !me.left && p.catchable} onCatch={() => send({ type: "catch", target: p.id })} />
-        ))}
-      </div>
-
-      {/* the table */}
-      <main ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center px-2 sm:px-4">
-        <div className="relative" style={{ width: stage.w, height: stage.h }}>
-          <Board
-            board={v.board}
-            bounds={bounds}
-            lockFrom={v.lockFrom}
-            blockedTop={myTurn ? v.blockedTop : null}
-            lastSeq={v.lastPlay?.seq ?? 0}
-            lastIdx={v.lastPlay?.idx ?? null}
-            ghosts={sel.wild ? [] : ghosts}
-            hover={sel.hover}
-            onHover={(k) => setSel((s) => (s.hover === k ? s : { ...s, hover: k }))}
-            onPick={pickSpot}
-            holding={held}
-            holdingRot={v.dir}
-            wildPreview={sel.wild}
-          />
-
-          {/* floating status */}
-          <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1.5 sm:left-3 sm:top-3">
-            {wildOnTop && (
-              <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(7,18,51,0.6)", color: TEXT_2 }}>
-                <svg viewBox="0 0 1 1" width={12} height={12} aria-hidden>
-                  <Pip suit={wildOnTop} x={0} y={0} w={1} color={wildOnTop === "H" || wildOnTop === "D" ? "#ff8a96" : "#ffffff"} />
-                </svg>
-                Wild called {SUIT_NAME[wildOnTop]}
-              </div>
+      {/* the room: a column in portrait, the table beside a side panel in landscape */}
+      <div
+        ref={bodyRef}
+        className="relative flex min-h-0 flex-1 flex-col sm:landscape:flex-row sm:landscape:items-center sm:landscape:justify-center sm:landscape:gap-5 sm:landscape:px-5 sm:landscape:pb-4 sm:landscape:pt-3"
+      >
+        {/* the table */}
+        <main
+          ref={stageRef}
+          className="relative flex min-h-0 flex-1 basis-0 items-center justify-center px-3 py-1 sm:px-5 sm:landscape:flex-none sm:landscape:basis-auto sm:landscape:p-0"
+          style={fit.side ? { width: fit.w } : { minHeight: fit.floor || undefined }}
+        >
+          <div className="relative" style={{ width: stage.w, height: stage.h }}>
+            {stage.w > 0 && (
+              <Board
+                board={v.board}
+                bounds={bounds}
+                lockFrom={v.lockFrom}
+                blockedTop={myTurn ? v.blockedTop : null}
+                lastSeq={v.lastPlay?.seq ?? 0}
+                lastIdx={v.lastPlay?.idx ?? null}
+                ghosts={sel.wild ? [] : ghosts}
+                hover={sel.hover}
+                onHover={(k) => setSel((s) => (s.hover === k ? s : { ...s, hover: k }))}
+                onPick={pickSpot}
+                holding={held}
+                holdingRot={v.dir}
+                wildPreview={sel.wild}
+                pxH={stage.h}
+              />
             )}
+
+            {/* floating status */}
+            <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1.5 sm:left-3 sm:top-3">
+              {wildOnTop && (
+                <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(7,18,51,0.6)", color: TEXT_2 }}>
+                  <svg viewBox="0 0 1 1" width={12} height={12} aria-hidden>
+                    <Pip suit={wildOnTop} x={0} y={0} w={1} color={wildOnTop === "H" || wildOnTop === "D" ? "#ff8a96" : "#ffffff"} />
+                  </svg>
+                  Wild called {SUIT_NAME[wildOnTop]}
+                </div>
+              )}
+            </div>
+            <div className="absolute right-1.5 top-1.5 sm:right-3 sm:top-3">
+              <button
+                type="button"
+                disabled={!myTurn || v.phase !== "play" || v.combo !== null}
+                onClick={() => send({ type: "draw" })}
+                className="group flex flex-col items-center rounded-2xl px-2 py-1.5 transition-colors enabled:hover:bg-white/10 disabled:cursor-default"
+                aria-label="Draw a card"
+              >
+                <span className="relative">
+                  <span className="absolute left-[4px] top-[6px] opacity-50">
+                    <CubeChip card="back" size={pileSize} />
+                  </span>
+                  <span className="absolute left-[2px] top-[3px] opacity-75">
+                    <CubeChip card="back" size={pileSize} />
+                  </span>
+                  <CubeChip card="back" size={pileSize} />
+                </span>
+                <span className={`${pixel.className} mt-1.5 text-[10px]`} style={{ color: TEXT_2 }}>
+                  Draw · {v.drawCount}
+                </span>
+              </button>
+            </div>
           </div>
-          <div className="absolute right-2 top-2 sm:right-3 sm:top-3">
-            <button
-              type="button"
-              disabled={!myTurn || v.phase !== "play" || v.combo !== null}
-              onClick={() => send({ type: "draw" })}
-              className="group flex flex-col items-center rounded-2xl px-2 py-1.5 transition-colors enabled:hover:bg-white/10 disabled:cursor-default"
-              aria-label="Draw a card"
+        </main>
+
+        {/* the side panel — in portrait it dissolves, and the others and the dock take their places around the table */}
+        <div
+          ref={panelRef}
+          className="contents sm:landscape:flex sm:landscape:min-h-0 sm:landscape:w-[clamp(290px,27vw,372px)] sm:landscape:shrink-0 sm:landscape:flex-col sm:landscape:gap-3"
+          style={fit.side && fit.h ? { height: fit.h } : undefined}
+        >
+          {/* the others */}
+          {opponents.length > 0 && (
+            <div
+              className={`order-first flex shrink-0 gap-2 overflow-x-auto px-3 pb-3 pt-3 [justify-content:safe_center] sm:px-5 sm:landscape:order-none sm:landscape:grid sm:landscape:overflow-visible sm:landscape:p-0 ${opponents.length === 1 ? "sm:landscape:grid-cols-1" : "sm:landscape:grid-cols-2"}`}
             >
-              <span className="relative">
-                <span className="absolute left-[4px] top-[6px] opacity-50">
-                  <CubeChip card="back" size={48} />
-                </span>
-                <span className="absolute left-[2px] top-[3px] opacity-75">
-                  <CubeChip card="back" size={48} />
-                </span>
-                <CubeChip card="back" size={48} />
-              </span>
-              <span className={`${pixel.className} mt-1.5 text-[10px]`} style={{ color: TEXT_2 }}>
-                Draw · {v.drawCount}
-              </span>
-            </button>
-          </div>
-        </div>
-      </main>
-
-      {/* the dock */}
-      <div className="relative z-20 shrink-0" style={{ background: "linear-gradient(180deg, transparent, rgba(6,14,44,0.92) 30%)" }}>
-        <div className="mx-auto max-w-5xl px-3 pb-4 pt-4 sm:px-5">
-          {/* prompt + clock */}
-          <div className="flex items-center justify-between gap-3">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={prompt} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18, ease: SWIFT }} className={`${pixelSans.className} min-w-0 truncate text-[15px] font-semibold sm:text-[16px]`} style={{ color: myTurn ? CYAN : TEXT_2 }}>
-                {prompt}
-              </motion.div>
-            </AnimatePresence>
-            {lastLog && (
-              <div className="hidden truncate text-[12px] md:block" style={{ color: TEXT_3 }}>
-                {logLine(lastLog)}
-              </div>
-            )}
-          </div>
-          {v.phase !== "over" && (
-            <div className="mt-1.5 h-[3px] overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div className="h-full rounded-full" style={{ width: `${frac * 100}%`, background: frac < 0.25 ? DANGER : myTurn ? CYAN : "rgba(255,255,255,0.35)", transition: "width 250ms linear" }} />
+              {opponents.map((p) => (
+                <Opponent key={p.id} p={p} seatColor={seatColor(p.seat)} active={v.turn === p.id && v.phase !== "over"} canCatch={!spectating && !!me && !me.left && p.catchable} onCatch={() => send({ type: "catch", target: p.id })} />
+              ))}
             </div>
           )}
 
-          {/* wild controls */}
-          <AnimatePresence>
-            {sel.wild && myTurn && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="mr-1 text-[11px] uppercase tracking-[0.14em]" style={{ color: TEXT_3 }}>
-                      Direction
-                    </span>
-                    {ARROWS.map((a, r) => {
-                      const ok = wildRots.includes(r);
-                      const on = sel.wild!.rot === r;
-                      return (
-                        <button key={r} type="button" disabled={!ok} onClick={() => setSel((s) => ({ ...s, wild: s.wild && { ...s.wild, rot: r } }))} className="h-9 w-9 rounded-lg text-[16px] font-bold disabled:opacity-20" style={{ background: on ? CYAN : "rgba(255,255,255,0.08)", color: on ? "#071233" : TEXT }} aria-label={`Face ${a}`}>
-                          {a}
-                        </button>
-                      );
-                    })}
+          {/* the dock */}
+          <div
+            className="relative z-20 order-last flex min-h-0 shrink flex-col sm:landscape:order-none sm:landscape:mt-auto sm:landscape:rounded-2xl"
+            style={
+              fit.side
+                ? { background: "rgba(6,14,44,0.55)", border: `1px solid ${LINE}`, boxShadow: "0 20px 50px rgba(0,6,30,0.35)" }
+                : { background: "linear-gradient(180deg, transparent, rgba(6,14,44,0.92) 30%)" }
+            }
+          >
+            <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 sm:pb-4 sm:landscape:p-4">
+              {/* prompt + clock */}
+              <div className="flex shrink-0 items-center justify-between gap-3 sm:landscape:flex-col sm:landscape:items-start sm:landscape:gap-1">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={prompt}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: SWIFT }}
+                    className={`${pixelSans.className} min-w-0 truncate text-[15px] font-semibold sm:text-[16px] sm:landscape:whitespace-normal sm:landscape:leading-snug`}
+                    style={{ color: myTurn ? CYAN : TEXT_2 }}
+                  >
+                    {prompt || " "}
+                  </motion.div>
+                </AnimatePresence>
+                {lastLog && (
+                  <div className="hidden min-w-0 truncate text-[12px] md:block sm:landscape:block sm:landscape:max-w-full" style={{ color: TEXT_3 }}>
+                    {logLine(lastLog)}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="mr-1 text-[11px] uppercase tracking-[0.14em]" style={{ color: TEXT_3 }}>
-                      Call
-                    </span>
-                    {SUITS.map((s) => {
-                      const on = sel.wild!.called === s;
-                      return (
-                        <button key={s} type="button" onClick={() => setSel((x) => ({ ...x, wild: x.wild && { ...x.wild, called: s } }))} className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: on ? "#ffffff" : "rgba(255,255,255,0.08)", boxShadow: on ? `0 0 0 2px ${CYAN}` : undefined }} aria-label={SUIT_NAME[s]}>
-                          <svg viewBox="0 0 1 1" width={18} height={18} aria-hidden>
-                            <Pip suit={s} x={0} y={0} w={1} color={on ? SUIT_COLOR[s] : s === "H" || s === "D" ? "#ff8a96" : "#ffffff"} />
-                          </svg>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="ml-auto flex gap-2">
-                    <Btn onClick={() => setSel((s) => ({ ...s, wild: null }))}>Back</Btn>
-                    <Btn tone="go" disabled={!sel.wild.called} onClick={placeWild}>
-                      Place wild
-                    </Btn>
+                )}
+              </div>
+              {v.phase !== "over" && (
+                <div className="mt-1.5 h-[3px] shrink-0 overflow-hidden rounded-full sm:landscape:mt-2.5" style={{ background: "rgba(255,255,255,0.08)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${frac * 100}%`, background: frac < 0.25 ? DANGER : myTurn ? CYAN : "rgba(255,255,255,0.35)", transition: "width 250ms linear" }} />
+                </div>
+              )}
+
+              {/* wild controls */}
+              <AnimatePresence>
+                {sel.wild && myTurn && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="shrink-0 overflow-hidden">
+                    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2.5 sm:landscape:gap-y-3">
+                      <div className="flex items-center gap-1.5 sm:landscape:w-full sm:landscape:flex-wrap">
+                        <span className="mr-1 text-[11px] uppercase tracking-[0.14em] sm:landscape:w-full" style={{ color: TEXT_3 }}>
+                          Direction
+                        </span>
+                        {ARROWS.map((a, r) => {
+                          const ok = wildRots.includes(r);
+                          const on = sel.wild!.rot === r;
+                          return (
+                            <button key={r} type="button" disabled={!ok} onClick={() => setSel((s) => ({ ...s, wild: s.wild && { ...s.wild, rot: r } }))} className="h-9 w-9 rounded-lg text-[16px] font-bold disabled:opacity-20" style={{ background: on ? CYAN : "rgba(255,255,255,0.08)", color: on ? "#071233" : TEXT }} aria-label={`Face ${a}`}>
+                              {a}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-1.5 sm:landscape:w-full sm:landscape:flex-wrap">
+                        <span className="mr-1 text-[11px] uppercase tracking-[0.14em] sm:landscape:w-full" style={{ color: TEXT_3 }}>
+                          Call
+                        </span>
+                        {SUITS.map((s) => {
+                          const on = sel.wild!.called === s;
+                          return (
+                            <button key={s} type="button" onClick={() => setSel((x) => ({ ...x, wild: x.wild && { ...x.wild, called: s } }))} className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: on ? "#ffffff" : "rgba(255,255,255,0.08)", boxShadow: on ? `0 0 0 2px ${CYAN}` : undefined }} aria-label={SUIT_NAME[s]}>
+                              <svg viewBox="0 0 1 1" width={18} height={18} aria-hidden>
+                                <Pip suit={s} x={0} y={0} w={1} color={on ? SUIT_COLOR[s] : s === "H" || s === "D" ? "#ff8a96" : "#ffffff"} />
+                              </svg>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="ml-auto flex gap-2 sm:landscape:ml-0 sm:landscape:w-full">
+                        <Btn onClick={() => setSel((s) => ({ ...s, wild: null }))}>Back</Btn>
+                        <Btn tone="go" disabled={!sel.wild.called} onClick={placeWild} style={fit.side ? { flex: 1 } : undefined}>
+                          Place wild
+                        </Btn>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* hand + actions: side by side in portrait, stacked in the side panel */}
+              <div className="mt-1 flex min-h-0 flex-1 items-end gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-2 sm:landscape:mt-2 sm:landscape:flex-col sm:landscape:items-stretch">
+                <div
+                  ref={handRef}
+                  className="-mx-1 min-h-0 min-w-0 flex-1 self-stretch overflow-y-auto overflow-x-hidden px-1 sm:landscape:mx-0 sm:landscape:px-0"
+                  style={fit.side ? undefined : { maxHeight: handMax }}
+                >
+                  <div className="flex flex-wrap content-start gap-1.5 pb-1 pt-4 sm:gap-2">
+                    <AnimatePresence initial={false}>
+                      {hand.map((c) => {
+                        const can = spotsById.has(c.id);
+                        const giving = v.phase === "give" && myTurn;
+                        const picked = giving ? sel.give.includes(c.id) : sel.id === c.id;
+                        const dim = myTurn && !giving && !can;
+                        return (
+                          <motion.button
+                            key={c.id}
+                            layout
+                            type="button"
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: dim ? 0.42 : 1, y: picked ? -14 : 0 }}
+                            exit={{ opacity: 0, y: -40, scale: 0.8 }}
+                            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                            whileHover={myTurn && (can || giving) ? { y: picked ? -14 : -6 } : undefined}
+                            onClick={() => choose(c)}
+                            className="relative shrink-0 rounded-xl p-1"
+                            style={{ filter: picked ? `drop-shadow(0 0 10px ${CYAN})` : "drop-shadow(0 6px 10px rgba(2,8,30,0.5))" }}
+                            aria-label={cardName(c)}
+                            aria-pressed={picked}
+                          >
+                            <CubeChip card={c} size={chip} />
+                            {picked && <span className="absolute inset-x-3 -bottom-1 h-[3px] rounded-full" style={{ background: CYAN }} />}
+                          </motion.button>
+                        );
+                      })}
+                    </AnimatePresence>
+                    {spectating && (
+                      <div className="py-3 text-[13px]" style={{ color: TEXT_3 }}>
+                        Spectating — hands are hidden
+                      </div>
+                    )}
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* hand + actions */}
-          <div className="mt-3 flex items-end gap-3">
-            <div className="min-w-0 flex-1 overflow-x-auto pb-1 pt-5">
-              <div className="flex w-max gap-1.5 px-1 sm:gap-2">
-                <AnimatePresence initial={false}>
-                  {hand.map((c) => {
-                    const can = spotsById.has(c.id);
-                    const giving = v.phase === "give" && myTurn;
-                    const picked = giving ? sel.give.includes(c.id) : sel.id === c.id;
-                    const dim = myTurn && !giving && !can;
-                    return (
-                      <motion.button
-                        key={c.id}
-                        layout
-                        type="button"
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: dim ? 0.42 : 1, y: picked ? -14 : 0 }}
-                        exit={{ opacity: 0, y: -40, scale: 0.8 }}
-                        transition={{ type: "spring", stiffness: 420, damping: 30 }}
-                        whileHover={myTurn && (can || giving) ? { y: picked ? -14 : -6 } : undefined}
-                        onClick={() => choose(c)}
-                        className="relative shrink-0 rounded-xl p-1"
-                        style={{ filter: picked ? `drop-shadow(0 0 10px ${CYAN})` : "drop-shadow(0 6px 10px rgba(2,8,30,0.5))" }}
-                        aria-label={cardName(c)}
-                        aria-pressed={picked}
-                      >
-                        <CubeChip card={c} size={68} />
-                        {picked && <span className="absolute inset-x-3 -bottom-1 h-[3px] rounded-full" style={{ background: CYAN }} />}
-                      </motion.button>
-                    );
-                  })}
-                </AnimatePresence>
-                {spectating && (
-                  <div className="py-6 text-[13px]" style={{ color: TEXT_3 }}>
-                    Spectating — hands are hidden
+                {/* actions */}
+                {(myTurn || lateUhOh) && (
+                  <div className="flex shrink-0 flex-col items-stretch gap-2 pb-1 max-sm:flex-row max-sm:pb-0 sm:landscape:flex-row sm:landscape:flex-wrap sm:landscape:pb-0 max-sm:[&>*]:flex-1 sm:landscape:[&>*]:flex-1">
+                    {myTurn &&
+                      (v.phase === "give" ? (
+                        <Btn tone="go" disabled={sel.give.length !== v.give} onClick={() => send({ type: "give", cardIds: sel.give })}>
+                          Give {v.give} → {next?.name ?? ""}
+                        </Btn>
+                      ) : (
+                        <>
+                          {v.pending && (
+                            <Btn tone="warn" onClick={() => send({ type: "take" })}>
+                              Take {v.pending.n}
+                            </Btn>
+                          )}
+                          {v.combo !== null ? (
+                            <Btn tone="go" onClick={() => send({ type: "done" })}>
+                              Finish turn
+                            </Btn>
+                          ) : (
+                            <Btn onClick={() => send({ type: "draw" })}>Draw</Btn>
+                          )}
+                          {hand.length === 2 && (
+                            <Btn tone={sel.declare ? "gold" : "plain"} onClick={() => setSel((s) => ({ ...s, declare: !s.declare }))}>
+                              {sel.declare ? "UH OH! ✓" : "UH OH!"}
+                            </Btn>
+                          )}
+                        </>
+                      ))}
+                    {lateUhOh && (
+                      <Btn tone="gold" pulse onClick={() => send({ type: "uhoh" })}>
+                        UH OH!
+                      </Btn>
+                    )}
                   </div>
                 )}
               </div>
             </div>
-
-            {/* actions */}
-            {myTurn && (
-              <div className="flex shrink-0 flex-col items-stretch gap-2 pb-2">
-                {v.phase === "give" ? (
-                  <Btn tone="go" disabled={sel.give.length !== v.give} onClick={() => send({ type: "give", cardIds: sel.give })}>
-                    Give {v.give} → {next?.name ?? ""}
-                  </Btn>
-                ) : (
-                  <>
-                    {v.pending && (
-                      <Btn tone="warn" onClick={() => send({ type: "take" })}>
-                        Take {v.pending.n}
-                      </Btn>
-                    )}
-                    {v.combo !== null ? (
-                      <Btn tone="go" onClick={() => send({ type: "done" })}>
-                        Finish turn
-                      </Btn>
-                    ) : (
-                      <Btn onClick={() => send({ type: "draw" })}>Draw</Btn>
-                    )}
-                    {hand.length === 2 && (
-                      <Btn tone={sel.declare ? "gold" : "plain"} onClick={() => setSel((s) => ({ ...s, declare: !s.declare }))}>
-                        {sel.declare ? "UH OH! ✓" : "UH OH!"}
-                      </Btn>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {!myTurn && me && hand.length === 1 && !me.called && !me.left && (
-              <div className="shrink-0 pb-2">
-                <Btn tone="gold" pulse onClick={() => send({ type: "uhoh" })}>
-                  UH OH!
-                </Btn>
-              </div>
-            )}
           </div>
-          {myTurn && hand.length === 1 && me && !me.called && (
-            <div className="mt-1 flex justify-end">
-              <Btn tone="gold" pulse onClick={() => send({ type: "uhoh" })}>
-                UH OH!
-              </Btn>
-            </div>
-          )}
         </div>
       </div>
 

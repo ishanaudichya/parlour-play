@@ -13,6 +13,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import {
   getMutedServerSnapshot,
   getMutedSnapshot,
@@ -33,11 +34,15 @@ import {
 import type { GameScreenProps } from "@/lib/party/types";
 import { Connect4Board, type FallingDisc } from "./Board";
 import { bungee } from "./font";
-import { AMBER, CREAM, DISC_PAINT, MUTED, SWIFT } from "./geometry";
+import { AMBER, BLEED, BOARD_H, BOARD_W, CREAM, DISC_PAINT, LEG_H, LIP, MUTED, SWIFT } from "./geometry";
 import { C4RulesModal, DiscChip, GameOverCard } from "./Overlays";
 import { c4Sfx, playConnect4Diff } from "./sfx";
 
 const EASE = "cubic-bezier(0.16,1,0.3,1)";
+/** width ÷ height of the cabinet's viewBox */
+const BOARD_ASPECT = (BOARD_W + BLEED * 2) / (LIP + BOARD_H + LEG_H);
+/** room kept under the board for the log ticker and the key hint */
+const TICKER_H = 44;
 
 /* ---------------- clock (never Date.now() during render) ---------------- */
 
@@ -294,9 +299,11 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
       : { text: `Waiting for ${turnPlayer?.name ?? "…"}…`, color: MUTED };
   }, [v.phase, v.draw, v.players, v.winner, spectating, me, myTurn, turnPlayer, bannerColor]);
 
+  const toolbarBtn = "flex h-8 items-center rounded-lg border px-2.5 transition hover:brightness-125";
+
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      className="relative flex h-dvh flex-col overflow-hidden"
       style={{
         background:
           "radial-gradient(110% 70% at 50% -12%, rgba(245,178,62,0.15) 0%, rgba(245,178,62,0.035) 34%, transparent 64%), linear-gradient(180deg, #171420 0%, #12101a 46%, #0f0d16 100%)",
@@ -314,8 +321,8 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
         style={{ background: "radial-gradient(60% 100% at 50% 0%, rgba(255,214,150,0.09) 0%, transparent 70%)" }}
       />
 
-      {/* header */}
-      <header className="relative z-10 flex items-center justify-between gap-3 px-3 pb-1 pt-3 sm:px-5">
+      {/* toolbar — stays above the game-over card so the Parlour menu is always in reach */}
+      <header className="relative z-[55] flex h-14 shrink-0 items-center justify-between gap-3 px-3 sm:px-5">
         <div className="min-w-0">
           <h1
             className={`${bungee.className} truncate text-[15px] leading-none tracking-[0.02em] sm:text-[17px]`}
@@ -324,6 +331,14 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
             FOUR IN A ROW
           </h1>
           <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em]" style={{ color: MUTED }}>
+            {spectating && (
+              <>
+                <span style={{ color: "#e0c894" }}>Spectating</span>
+                <span aria-hidden style={{ opacity: 0.4 }}>
+                  ·
+                </span>
+              </>
+            )}
             <span className="tabular-nums">
               {v.moves}/{CELLS} discs
             </span>
@@ -339,7 +354,7 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
             type="button"
             onClick={() => setMuted(!muted)}
             aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-            className={`rounded-lg border px-2.5 py-1.5 text-[13px] transition ${muted ? "line-through" : ""}`}
+            className={`${toolbarBtn} text-[13px] ${muted ? "line-through" : ""}`}
             style={{ borderColor: "rgba(255,255,255,0.14)", color: muted ? "rgba(162,149,127,0.5)" : MUTED }}
           >
             ♪
@@ -347,26 +362,18 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
           <button
             type="button"
             onClick={() => setRulesOpen(true)}
-            className="rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition"
+            className={`${toolbarBtn} text-[10px] font-semibold uppercase tracking-[0.16em]`}
             style={{ borderColor: "rgba(255,255,255,0.14)", color: MUTED }}
           >
             Rules
           </button>
+          <PartyMenu style={{ borderRadius: 8, color: MUTED }} />
         </div>
       </header>
 
-      {spectating && (
-        <div
-          className="relative z-10 mx-auto mt-1 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em]"
-          style={{ borderColor: "rgba(245,178,62,0.35)", background: "rgba(30,24,16,0.7)", color: "#e0c894" }}
-        >
-          Spectating — pull up a chair
-        </div>
-      )}
-
-      {/* banner + clock */}
-      <div className="relative z-10 mt-2 space-y-2 px-3 sm:px-5">
-        <div className="flex min-h-[30px] items-center justify-center gap-2.5">
+      {/* banner + clock — fixed height, so the board never jumps when the clock goes */}
+      <div className="relative z-10 flex h-[62px] shrink-0 flex-col items-center justify-center gap-1.5 px-3 sm:px-5">
+        <div className="flex h-[26px] items-center justify-center gap-2.5">
           {turnPlayer && v.phase === "play" && <DiscChip color={turnPlayer.color} size={18} />}
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
@@ -375,7 +382,7 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -8, opacity: 0 }}
               transition={{ duration: 0.28, ease: SWIFT }}
-              className={`${bungee.className} text-[15px] leading-none sm:text-[17px]`}
+              className={`${bungee.className} text-[15px] leading-none sm:text-[18px]`}
               style={{ color: banner.color, textShadow: `0 0 20px ${banner.color}44` }}
             >
               {banner.text}
@@ -392,26 +399,35 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
         )}
       </div>
 
-      {/* table */}
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-3 pb-6 pt-4 sm:px-5">
-        <div className="grid grid-cols-2 items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,560px)_minmax(0,1fr)] lg:items-center lg:gap-6">
-          {v.players.map((p, i) => (
-            <div key={p.id} className={i === 0 ? "lg:order-1" : "lg:order-3"}>
-              <PlayerCard
-                p={p}
-                active={v.phase === "play" && v.turn === p.id}
-                you={p.id === youId}
-                wins={tallies[p.id] ?? 0}
-                won={v.winner === p.id}
-              />
-            </div>
-          ))}
+      {/* table: cards over the board on phones, flanking it on desktop. One size
+          container measures the room; the board takes what the cards leave. */}
+      <main className="relative z-10 min-h-0 flex-1 px-3 pb-2 pt-2 sm:px-5 lg:pb-4">
+        <div
+          className="flex h-full flex-col items-center justify-center gap-3 [--c4-side:0px] [--c4-top:70px] lg:flex-row lg:gap-8 lg:[--c4-side:calc(2*clamp(176px,15vw,250px)+4rem)] lg:[--c4-top:0px]"
+          style={{ containerType: "size" }}
+        >
+          <div className="grid w-full shrink-0 grid-cols-2 gap-2.5 lg:contents">
+            {v.players.map((p, i) => (
+              <div key={p.id} className={`lg:w-[clamp(176px,15vw,250px)] lg:shrink-0 ${i === 0 ? "lg:order-1" : "lg:order-3"}`}>
+                <PlayerCard
+                  p={p}
+                  active={v.phase === "play" && v.turn === p.id}
+                  you={p.id === youId}
+                  wins={tallies[p.id] ?? 0}
+                  won={v.winner === p.id}
+                />
+              </div>
+            ))}
+          </div>
 
-          <div className="col-span-2 mt-1 lg:order-2 lg:col-span-1 lg:mt-0">
+          {/* the board keeps its shape and takes whatever room the cards leave */}
+          <div className="relative flex shrink-0 flex-col items-center lg:order-2">
             <motion.div
               animate={shudder}
-              className="mx-auto w-full"
-              style={{ maxWidth: "min(100%, 560px, 66vh)" }}
+              className="shrink-0"
+              style={{
+                width: `min(100cqw - var(--c4-side), (100cqh - var(--c4-top) - ${TICKER_H}px) * ${BOARD_ASPECT.toFixed(4)}, 980px)`,
+              }}
             >
               <Connect4Board
                 board={v.board}
@@ -426,33 +442,35 @@ export function Connect4Screen(props: GameScreenProps<Connect4View>) {
               />
             </motion.div>
 
-            {/* log ticker */}
-            <div className="mt-3 flex min-h-[18px] items-center justify-center px-2 text-center">
-              <AnimatePresence mode="wait" initial={false}>
-                {lastLog && (
-                  <motion.span
-                    key={lastLog.i}
-                    initial={{ y: 6, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -6, opacity: 0 }}
-                    transition={{ duration: 0.26, ease: SWIFT }}
-                    className="text-[11px] italic"
-                    style={{ color: "rgba(162,149,127,0.9)" }}
-                  >
-                    {logLine(lastLog)}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
+            <div className="flex shrink-0 flex-col items-center justify-start pt-2.5" style={{ height: TICKER_H }}>
+              {/* log ticker */}
+              <div className="flex min-h-[18px] items-center justify-center px-2 text-center">
+                <AnimatePresence mode="wait" initial={false}>
+                  {lastLog && (
+                    <motion.span
+                      key={lastLog.i}
+                      initial={{ y: 6, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -6, opacity: 0 }}
+                      transition={{ duration: 0.26, ease: SWIFT }}
+                      className="text-[11px] italic sm:text-[12px]"
+                      style={{ color: "rgba(162,149,127,0.9)" }}
+                    >
+                      {logLine(lastLog)}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
 
-            {interactive && (
-              <p
-                className="mt-1 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block"
-                style={{ color: "rgba(162,149,127,0.55)" }}
-              >
-                click a column · ← → and enter also work
-              </p>
-            )}
+              {interactive && (
+                <p
+                  className="mt-0.5 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block"
+                  style={{ color: "rgba(162,149,127,0.55)" }}
+                >
+                  click a column · ← → and enter also work
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </main>

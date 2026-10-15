@@ -5,7 +5,17 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Baloo_2 } from "next/font/google";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import {
   getMutedServerSnapshot,
   getMutedSnapshot,
@@ -27,7 +37,17 @@ import type { GameScreenProps } from "@/lib/party/types";
 import { CardFace, UNO_HEX } from "./cards";
 import { ColorPicker, DrawnPrompt, GameOverOverlay, RulesModal } from "./overlays";
 import { unoSfx, type UnoSfxName } from "./sfx";
-import { DirectionRing, DiscardStack, DrawPile, EASE, OpponentChip, TurnClock, turnPctOf } from "./table";
+import {
+  CHIP_H,
+  CHIP_W,
+  DirectionRing,
+  DiscardStack,
+  DrawPile,
+  EASE,
+  OpponentChip,
+  TurnClock,
+  turnPctOf,
+} from "./table";
 
 const baloo = Baloo_2({ subsets: ["latin"], weight: ["500", "600", "700", "800"] });
 
@@ -101,6 +121,101 @@ const LOG_SFX: Partial<Record<UnoLogKind, UnoSfxName>> = {
   leave: "leave",
 };
 
+/* ---------------- layout ---------------- */
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+const HEADER_H = 48;
+const ACTION_H = 48;
+
+interface UnoLayout {
+  compact: boolean;
+  /** opponent chip zoom + rows */
+  chipScale: number;
+  oppCols: number;
+  oppGap: number;
+  oppH: number;
+  /** your hand: card width + fan step between card origins */
+  handW: number;
+  handStep: number;
+  handH: number;
+  /** draw / discard pile card width */
+  pileW: number;
+  ring: number;
+  pileGap: number;
+  stackGap: number;
+  /** status pill font size */
+  pill: number;
+}
+
+/** Size everything from the viewport: opponents across the top, your hand
+    along the bottom, and the piles take whatever height is left. */
+function unoLayout(W: number, H: number, nOpp: number, handN: number, spectating: boolean): UnoLayout {
+  const compact = W < 640;
+  const availW = W - 24;
+
+  /* opponents: one row if they fit at a readable size, else two */
+  const oppGap = compact ? 8 : 12;
+  const ideal = compact ? 1 : clamp(H / 800, 0.85, 1.4);
+  const n = Math.max(1, nOpp);
+  const fitOne = (availW - (n - 1) * oppGap) / n / CHIP_W;
+  let oppCols = n;
+  let chipScale = Math.min(ideal, fitOne);
+  if (fitOne < 0.8) {
+    oppCols = Math.ceil(n / 2);
+    chipScale = Math.min(ideal, (availW - (oppCols - 1) * oppGap) / oppCols / CHIP_W);
+  }
+  const rows = Math.ceil(n / oppCols);
+  const oppH = nOpp === 0 ? 8 : rows * CHIP_H * chipScale + (rows - 1) * oppGap + 22;
+
+  /* your hand: as tall as ~15% of the screen, shrunk only when the fan
+     would otherwise overlap past the corner indices */
+  const baseHandW = Math.min(clamp(H * 0.15, 60, 168), compact ? availW / 3.3 : 999);
+  let handW = baseHandW;
+  const m = Math.max(1, handN);
+  const minStep = 0.36;
+  if (m > 1 && handW + (m - 1) * handW * minStep > availW - 24) {
+    handW = Math.max(54, (availW - 24) / (1 + minStep * (m - 1)));
+  }
+  const handStep = m > 1 ? clamp((availW - 24 - handW) / (m - 1), handW * 0.3, handW * 0.64) : handW;
+  // card + lift room above + rotation droop below + the safe-area pad
+  const handH = spectating ? 72 : handW * 1.6 + 30;
+
+  /* piles get the rest of the height, capped by width and by the hand's
+     natural size (not the squeezed one — a big hand shouldn't shrink the piles) */
+  const centerH = H - HEADER_H - oppH - ACTION_H - handH;
+  const stackGap = clamp(centerH * 0.045, 6, 22);
+  const chrome = 30 + 8 + 6 + 22 + stackGap * 2; // status pill, clock, colour tag
+  const byH = (centerH - chrome - 14) / 1.5;
+  const ringGuess = clamp(byH * 0.42, 40, 72);
+  const pileGap = compact ? 14 : clamp(W * 0.02, 18, 40);
+  const byW = (availW - ringGuess - pileGap * 2) / 2 - 10;
+  const pileW = Math.floor(clamp(Math.min(byH, byW, baseHandW * 1.4, 236), 52, 236));
+  const ring = Math.round(clamp(pileW * 0.42, 36, 72));
+  const pill = clamp(pileW * 0.1, 12, 16);
+
+  return { compact, chipScale, oppCols, oppGap, oppH, handW, handStep, handH, pileW, ring, pileGap, stackGap, pill };
+}
+
+/** Track an element's size (ResizeObserver), for fit-to-screen layouts. */
+function useBoxSize<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      setSize((s) => (s && s.w === Math.round(r.width) && s.h === Math.round(r.height) ? s : { w: Math.round(r.width), h: Math.round(r.height) }));
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, size] as const;
+}
+
 /* ---------------- hooks ---------------- */
 
 /** Server-clock "now", ticking locally every 200ms using the party skew. */
@@ -161,7 +276,7 @@ function IconButton({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="grid h-9 w-9 place-items-center rounded-xl border-2 border-white/10 bg-white/5 text-white/70 transition-colors hover:border-white/25 hover:text-white"
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border-2 border-white/10 bg-white/5 text-white/70 transition-colors hover:border-white/25 hover:text-white"
     >
       {children}
     </button>
@@ -290,9 +405,14 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
     send({ type: "pass" });
   }, [send]);
 
+  const [rootRef, box] = useBoxSize<HTMLDivElement>();
+  const L = unoLayout(box?.w ?? 1280, box?.h ?? 800, opponents.length, hand.length, !view.hand);
+  const clockW = Math.round(clamp(L.pileW * 2.6, 170, 360));
+
   return (
     <div
-      className={`${baloo.className} relative flex min-h-dvh w-full flex-col overflow-hidden bg-[#141418] text-white`}
+      ref={rootRef}
+      className={`${baloo.className} relative flex h-dvh w-full flex-col overflow-hidden bg-[#141418] text-white`}
     >
       <style>{KEYFRAMES}</style>
 
@@ -311,13 +431,18 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
         />
       </AnimatePresence>
 
-      {/* top bar */}
-      <header className="relative z-10 flex h-12 shrink-0 items-center gap-2 px-3">
-        <div className="flex select-none items-baseline text-xl font-extrabold tracking-tight" aria-label="UNO">
+      {/* top bar — sits above every overlay so the Parlour menu stays reachable */}
+      <header className="relative z-[60] flex shrink-0 items-center gap-2 px-3" style={{ height: HEADER_H }}>
+        <div className="flex shrink-0 select-none items-baseline text-xl font-extrabold tracking-tight" aria-label="UNO">
           <span style={{ color: UNO_HEX.red }}>U</span>
           <span style={{ color: UNO_HEX.yellow }}>N</span>
           <span style={{ color: UNO_HEX.blue }}>O</span>
         </div>
+        {spectating && (
+          <span className="shrink-0 rounded-full border-2 border-white/15 bg-black/50 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.24em] text-white/60">
+            {L.compact ? "Watching" : "Spectating"}
+          </span>
+        )}
         <div className="min-w-0 flex-1 text-center">
           {lastEntry && (
             <motion.div
@@ -325,7 +450,7 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="truncate text-[12px] font-semibold text-white/45"
+              className="truncate text-[12px] font-semibold text-white/45 sm:text-[13px]"
             >
               {logText(lastEntry)}
             </motion.div>
@@ -343,21 +468,26 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
         <IconButton label="How to play" onClick={() => setRulesOpen(true)}>
           <span className="text-[15px] font-extrabold">?</span>
         </IconButton>
+        <PartyMenu
+          className="text-white/80"
+          style={{ height: 36, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,.1)", background: "rgba(255,255,255,.05)" }}
+        />
       </header>
 
-      {spectating && (
-        <div className="pointer-events-none relative z-10 mx-auto -mt-1 mb-1 w-fit rounded-full border-2 border-white/15 bg-black/50 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.28em] text-white/60">
-          Spectating
-        </div>
-      )}
-
       {/* opponents */}
-      <div className="uno-scroll relative z-10 w-full overflow-x-auto px-3 pb-3 pt-2">
-        <div className="mx-auto flex w-max gap-2.5">
+      <div className="relative z-10 flex shrink-0 items-start justify-center px-3 pb-3.5 pt-2" style={{ height: L.oppH }}>
+        <div
+          className="flex flex-wrap justify-center"
+          style={{
+            gap: L.oppGap,
+            maxWidth: L.oppCols * CHIP_W * L.chipScale + (L.oppCols - 1) * L.oppGap + 1,
+          }}
+        >
           {opponents.map((p) => (
             <OpponentChip
               key={p.id}
               p={p}
+              scale={L.chipScale}
               isTurn={view.phase === "play" && view.turn === p.id}
               turnPct={turnPctOf(view.deadline, serverNow)}
               activeHex={hex}
@@ -376,15 +506,19 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
       </div>
 
       {/* center stage */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center gap-4 px-3 py-2">
+      <main
+        className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-3"
+        style={{ gap: L.stackGap }}
+      >
         <div className="flex flex-col items-center gap-2">
           <motion.div
             key={`${view.turn}-${view.phase}`}
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="rounded-full border-2 px-4 py-1 text-[13px] font-extrabold uppercase tracking-[0.18em]"
+            className="rounded-full border-2 px-4 py-1 font-extrabold uppercase tracking-[0.18em]"
             style={{
+              fontSize: L.pill,
               borderColor: isYourTurn ? hex : "rgba(255,255,255,.14)",
               color: isYourTurn ? hex : "rgba(255,255,255,.75)",
               boxShadow: isYourTurn ? `0 0 22px ${hex}44` : undefined,
@@ -397,25 +531,57 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
                 ? "Your turn"
                 : `${turnPlayer?.name ?? "…"} is up`}
           </motion.div>
-          {view.phase === "play" && <TurnClock deadline={view.deadline} serverNow={serverNow} hex={hex} />}
+          {view.phase === "play" ? (
+            <TurnClock deadline={view.deadline} serverNow={serverNow} hex={hex} width={clockW} />
+          ) : (
+            <div className="h-1.5" />
+          )}
         </div>
 
-        <div className="flex items-center gap-4 sm:gap-8">
-          <DrawPile count={view.deckCount} canDraw={isYourTurn && !view.hasDrawn} urge={mustDraw} onDraw={onDraw} w={76} />
-          <DirectionRing direction={view.direction} hex={hex} />
-          <DiscardStack tail={view.discardTail} activeColor={view.activeColor} flyFrom={flyFrom} w={76} />
+        <div className="flex items-center" style={{ gap: L.pileGap }}>
+          <DrawPile
+            count={view.deckCount}
+            canDraw={isYourTurn && !view.hasDrawn}
+            urge={mustDraw}
+            onDraw={onDraw}
+            w={L.pileW}
+          />
+          <DirectionRing direction={view.direction} hex={hex} size={L.ring} />
+          <DiscardStack tail={view.discardTail} activeColor={view.activeColor} flyFrom={flyFrom} w={L.pileW} />
         </div>
 
         <div
-          className="rounded-full border-2 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.26em] transition-colors duration-500"
+          className="rounded-full border-2 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.26em] transition-colors duration-500 sm:text-[11px]"
           style={{ borderColor: hex, color: hex, background: `${hex}1a` }}
         >
           {view.activeColor}
         </div>
+
       </main>
 
       {/* action row */}
-      <div className="relative z-10 flex min-h-12 flex-wrap items-center justify-center gap-2 px-3 pb-1">
+      <div
+        className="relative z-10 flex shrink-0 items-center justify-center gap-2 px-3"
+        style={{ height: ACTION_H }}
+      >
+        {/* drew a playable card: play it or keep it */}
+        <AnimatePresence>
+          {drawnCard && (
+            <DrawnPrompt
+              card={drawnCard}
+              onPlay={() => {
+                if (drawnCard.color === null) {
+                  primeSound();
+                  setWildPick(drawnCard.id);
+                } else {
+                  sendPlay(drawnCard.id);
+                }
+              }}
+              onKeep={onPass}
+              showText={!(L.compact && showUnoPill)}
+            />
+          )}
+        </AnimatePresence>
         {showUnoPill && (
           <motion.button
             type="button"
@@ -425,7 +591,7 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
               if (selfCatchable) send({ type: "callUno" });
               else setUnoArmed((v) => !v);
             }}
-            className="rounded-full border-[3px] px-6 py-2 text-lg font-extrabold tracking-wider"
+            className="rounded-full border-[3px] px-6 py-1 text-lg font-extrabold tracking-wider"
             style={{
               background: unoArmed || selfCatchable ? "#ef5350" : "rgba(0,0,0,.4)",
               borderColor: "#ef5350",
@@ -440,7 +606,7 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
         {unoArmed && !selfCatchable && (
           <span className="text-[11px] font-bold text-white/50">calls UNO with your next play</span>
         )}
-        {isYourTurn && view.hasDrawn && (
+        {isYourTurn && view.hasDrawn && !drawnCard && (
           <button
             type="button"
             onClick={onPass}
@@ -466,28 +632,11 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
         ))}
       </div>
 
-      {/* drew a playable card: play it or keep it */}
-      <div className="relative z-10 px-3">
-        <AnimatePresence>
-          {drawnCard && (
-            <DrawnPrompt
-              card={drawnCard}
-              onPlay={() => {
-                if (drawnCard.color === null) {
-                  primeSound();
-                  setWildPick(drawnCard.id);
-                } else {
-                  sendPlay(drawnCard.id);
-                }
-              }}
-              onKeep={onPass}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-
       {/* your hand */}
-      <div className="relative z-10 shrink-0 pb-[max(env(safe-area-inset-bottom),12px)] pt-2">
+      <div
+        className="relative z-10 flex shrink-0 flex-col justify-end pb-[max(env(safe-area-inset-bottom),4px)]"
+        style={{ height: L.handH }}
+      >
         {myBurst && (
           <motion.div
             key={`me-${myBurst.i}`}
@@ -501,8 +650,11 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
           </motion.div>
         )}
         {view.hand ? (
-          <div className="uno-scroll w-full overflow-x-auto overflow-y-visible">
-            <div className="mx-auto flex w-max items-end px-6 pb-1 pt-4">
+          <div className="uno-scroll w-full overflow-x-auto overflow-y-hidden">
+            <div
+              className="mx-auto flex w-max items-end px-6 pt-5"
+              style={{ paddingBottom: Math.round(L.handW * 0.1) }}
+            >
               {hand.map((c, i) => {
                 const n = hand.length;
                 const off = i - (n - 1) / 2;
@@ -517,7 +669,7 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
                     disabled={!playable}
                     initial={{ y: 70, opacity: 0, scale: 0.7 }}
                     animate={{
-                      y: playable ? -12 : 0,
+                      y: playable ? -Math.round(L.handW * 0.13) : 0,
                       opacity: 1,
                       scale: 1,
                       rotate: off * Math.min(3, 26 / Math.max(n, 1)),
@@ -526,14 +678,14 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
                     transition={{ duration: 0.4, ease: EASE }}
                     className="relative shrink-0 rounded-xl disabled:cursor-default"
                     style={{
-                      marginLeft: i === 0 ? 0 : -26,
+                      marginLeft: i === 0 ? 0 : Math.round(L.handStep - L.handW),
                       zIndex: i,
                       filter: dimmed ? "brightness(.45) saturate(.65)" : undefined,
                       boxShadow: playable ? `0 8px 24px ${hex}59` : undefined,
                     }}
                     aria-label={`${c.color ?? "wild"} ${c.symbol}${playable ? ", playable" : ""}`}
                   >
-                    <CardFace card={c} w={66} className="block" />
+                    <CardFace card={c} w={Math.round(L.handW)} className="block" />
                     {wildPick === c.id && (
                       <span className="absolute inset-0 rounded-xl border-[3px] border-white" />
                     )}
@@ -546,7 +698,7 @@ export function UnoScreen(props: GameScreenProps<UnoView>) {
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-fit rounded-2xl border-2 border-dashed border-white/15 px-6 py-4 text-[13px] font-bold text-white/45">
+          <div className="mx-auto mb-1 w-fit rounded-2xl border-2 border-dashed border-white/15 px-6 py-3 text-[13px] font-bold text-white/45">
             You&apos;re watching this round
           </div>
         )}

@@ -41,12 +41,12 @@ export function GameOver({
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-ink-950/85 px-4 pb-4 pt-16 backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-w-sm lg:max-w-md">
         {/* gold burst */}
         <div className="pointer-events-none absolute left-1/2 top-16 z-0" aria-hidden>
           {PARTICLES.map((p) => (
@@ -62,17 +62,18 @@ export function GameOver({
         </div>
 
         <motion.div
+          className="scroll-thin max-h-[calc(100dvh_-_80px)] overflow-y-auto"
           initial={{ y: 30, opacity: 0, scale: 0.96 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           transition={{ delay: 0.15, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Panel className="relative z-10 p-8 text-center">
+          <Panel className="relative z-10 p-7 text-center sm:p-8 lg:p-10">
             <Icons.crown size={30} className="mx-auto mb-3 text-gold-400" />
             <div className="label mb-3">{youWon ? "Victory" : "The game is over"}</div>
             <div className="mb-2 flex items-center justify-center">
-              <Medallion name={winner.name} seat={winner.seat} size={56} />
+              <Medallion name={winner.name} seat={winner.seat} size={64} />
             </div>
-            <h2 className="font-display text-3xl font-bold gold-text">{winner.name}</h2>
+            <h2 className="font-display text-3xl font-bold gold-text lg:text-4xl">{winner.name}</h2>
             <p className="mt-1 font-display text-sm tracking-[0.2em] text-parch-300">SEIZES POWER</p>
 
             {Object.keys(tallies).length > 0 && (

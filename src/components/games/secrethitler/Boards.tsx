@@ -65,7 +65,7 @@ export function PolicyTile({ party, w }: { party: SHParty; w?: number }) {
         <text x="60" y="20" textAnchor="middle" fontSize="10.5" letterSpacing="3.4" fill={tint} fontWeight="600">
           {liberal ? "LIBERAL" : "FASCIST"}
         </text>
-        <text x="60" y="71" textAnchor="middle" fontSize="6" letterSpacing="2.6" fill={INK_FADE}>
+        <text x="60" y="70.5" textAnchor="middle" fontSize="5.6" letterSpacing="1.2" fill={INK_FADE}>
           POLICY · REPUBLIC PRESS
         </text>
       </svg>
@@ -154,6 +154,10 @@ function SlamTile({ party }: { party: SHParty }) {
   );
 }
 
+/** Plate density: "sm" for phones (stacked plates, tracker folded into the
+    header), "md" the standard plate, "lg" for big screens. */
+export type PlateSize = "sm" | "md" | "lg";
+
 function Socket({
   filled,
   party,
@@ -161,6 +165,7 @@ function Socket({
   icon,
   hatch,
   note,
+  size,
 }: {
   filled: boolean;
   party: SHParty;
@@ -168,6 +173,7 @@ function Socket({
   icon?: SHPower | null;
   hatch?: boolean;
   note?: string;
+  size: PlateSize;
 }) {
   const tint = party === "liberal" ? SLATE : VERM_DARK;
   return (
@@ -189,18 +195,23 @@ function Socket({
           </div>
         ) : icon ? (
           <span className="flex flex-col items-center gap-0.5" style={{ color: tint }}>
-            <PowerGlyph power={icon} />
+            <PowerGlyph power={icon} size={size === "lg" ? 22 : size === "sm" ? 14 : 15} />
           </span>
         ) : note ? (
           <span
-            className={`${oswald.className} px-1 text-center text-[8px] font-semibold uppercase tracking-[0.14em]`}
+            className={`${oswald.className} px-1 text-center font-semibold uppercase tracking-[0.14em] ${
+              size === "lg" ? "text-[11px]" : "text-[8px]"
+            }`}
             style={{ color: tint }}
           >
             {note}
           </span>
         ) : null}
       </div>
-      <span className={`${typewriter.className} text-[8px] leading-none`} style={{ color: INK_FADE }}>
+      <span
+        className={`${typewriter.className} leading-none ${size === "lg" ? "text-[10px]" : "text-[8px]"}`}
+        style={{ color: INK_FADE }}
+      >
         {label}
       </span>
     </div>
@@ -209,28 +220,58 @@ function Socket({
 
 /* --------------------------------- panels ------------------------------- */
 
-function PlateHeader({ title, sub, color }: { title: string; sub: string; color: string }) {
+function PlateHeader({
+  title,
+  sub,
+  color,
+  size,
+  children,
+}: {
+  title: string;
+  sub: string;
+  color: string;
+  size: PlateSize;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="mb-2 flex items-baseline justify-between gap-2 border-b-2 pb-1.5" style={{ borderColor: color }}>
-      <span className={`${oswald.className} text-[13px] font-semibold uppercase tracking-[0.24em]`} style={{ color }}>
+    <div
+      className={`flex items-center justify-between gap-2 border-b-2 ${size === "sm" ? "mb-1.5 pb-1" : size === "lg" ? "mb-2.5 pb-2" : "mb-2 pb-1.5"}`}
+      style={{ borderColor: color }}
+    >
+      <span
+        className={`${oswald.className} font-semibold uppercase ${
+          size === "sm" ? "text-[11.5px] tracking-[0.2em]" : size === "lg" ? "text-[16px] tracking-[0.26em]" : "text-[13px] tracking-[0.24em]"
+        }`}
+        style={{ color }}
+      >
         {title}
       </span>
-      <span className={`${typewriter.className} truncate text-[9px]`} style={{ color: INK_FADE }}>
-        {sub}
-      </span>
+      {children ?? (
+        <span
+          className={`${typewriter.className} truncate ${size === "lg" ? "text-[10.5px]" : "text-[9px]"}`}
+          style={{ color: INK_FADE }}
+        >
+          {sub}
+        </span>
+      )}
     </div>
   );
 }
 
-export function LiberalBoard({ enacted, tracker }: { enacted: number; tracker: number }) {
+const platePad = (size: PlateSize) => (size === "sm" ? "p-2" : size === "lg" ? "p-3.5" : "p-2.5 sm:p-3");
+const socketGap = (size: PlateSize) => (size === "sm" ? "gap-1" : size === "lg" ? "gap-2" : "gap-1.5");
+
+export function LiberalBoard({ enacted, tracker, size = "md" }: { enacted: number; tracker: number; size?: PlateSize }) {
   return (
     <div
-      className="relative border-2 p-2.5 sm:p-3"
+      className={`relative border-2 ${platePad(size)}`}
       style={{ borderColor: INK, background: "#e2dcc8", boxShadow: PRESS_SHADOW }}
     >
       <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: HALFTONE }} />
-      <PlateHeader title="Liberal Track" sub="5 enacted — liberals win" color={SLATE} />
-      <div className="flex gap-1.5">
+      <PlateHeader title="Liberal Track" sub="5 enacted — liberals win" color={SLATE} size={size}>
+        {size === "sm" ? <ElectionTracker tracker={tracker} size="sm" /> : undefined}
+      </PlateHeader>
+      <div className={`flex ${socketGap(size)}`}>
         {Array.from({ length: 5 }, (_, i) => (
           <Socket
             key={i}
@@ -238,10 +279,11 @@ export function LiberalBoard({ enacted, tracker }: { enacted: number; tracker: n
             party="liberal"
             label={`${i + 1}`}
             note={i === 4 ? "LIBERTY" : undefined}
+            size={size}
           />
         ))}
       </div>
-      <ElectionTracker tracker={tracker} />
+      {size === "sm" ? null : <ElectionTracker tracker={tracker} size={size} />}
     </div>
   );
 }
@@ -250,19 +292,30 @@ export function FascistBoard({
   enacted,
   powers,
   vetoUnlocked,
+  size = "md",
 }: {
   enacted: number;
   powers: (SHPower | null)[];
   vetoUnlocked: boolean;
+  size?: PlateSize;
 }) {
   return (
     <div
-      className="relative border-2 p-2.5 sm:p-3"
+      className={`relative flex flex-col border-2 ${platePad(size)}`}
       style={{ borderColor: INK, background: "#e6d3ae", boxShadow: PRESS_SHADOW }}
     >
       <div className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: HALFTONE }} />
-      <PlateHeader title="Fascist Track" sub="6 enacted — fascists win" color={VERM_DARK} />
-      <div className="flex gap-1.5">
+      <PlateHeader title="Fascist Track" sub="6 enacted — fascists win" color={VERM_DARK} size={size}>
+        {size === "sm" ? (
+          <span
+            className={`${oswald.className} text-[8px] font-semibold uppercase tracking-[0.16em]`}
+            style={{ color: vetoUnlocked ? VERM : INK_FADE }}
+          >
+            {vetoUnlocked ? "veto power active" : "veto unlocks at 5"}
+          </span>
+        ) : undefined}
+      </PlateHeader>
+      <div className={`flex ${socketGap(size)}`}>
         {Array.from({ length: 6 }, (_, i) => (
           <Socket
             key={i}
@@ -272,19 +325,34 @@ export function FascistBoard({
             icon={powers[i]}
             hatch={i >= 2 && i >= enacted}
             note={i === 5 ? "REICH" : undefined}
+            size={size}
           />
         ))}
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
-        <span className={`${typewriter.className} text-[8.5px]`} style={{ color: VERM_DARK }}>
-          slots 3+ : Hitler as Chancellor ends the republic
-        </span>
-        <span
-          className={`${oswald.className} text-[8px] font-semibold uppercase tracking-[0.18em]`}
-          style={{ color: vetoUnlocked ? VERM : INK_FADE }}
+      {/* side by side the plates share a height: the footer rules off the
+          bottom edge, level with the liberal plate's election tracker */}
+      <div className="mt-auto">
+        <div
+          className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 ${
+            size === "sm" ? "pt-1" : size === "lg" ? "mt-2.5 border-t pt-2.5" : "mt-2 border-t pt-2"
+          }`}
+          style={{ borderColor: `${INK}33` }}
         >
-          {vetoUnlocked ? "veto power active" : "veto unlocks at 5"}
-        </span>
+          <span
+            className={`${typewriter.className} ${size === "lg" ? "text-[10.5px]" : "text-[8.5px]"}`}
+            style={{ color: VERM_DARK }}
+          >
+            slots 3+ : Hitler as Chancellor ends the republic
+          </span>
+          {size === "sm" ? null : (
+            <span
+              className={`${oswald.className} font-semibold uppercase tracking-[0.18em] ${size === "lg" ? "text-[10px]" : "text-[8px]"}`}
+              style={{ color: vetoUnlocked ? VERM : INK_FADE }}
+            >
+              {vetoUnlocked ? "veto power active" : "veto unlocks at 5"}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -292,18 +360,22 @@ export function FascistBoard({
 
 /* ---------------------------- election tracker -------------------------- */
 
-function TrackerStamp({ filled, alarming }: { filled: boolean; alarming: boolean }) {
+function TrackerStamp({ filled, alarming, px }: { filled: boolean; alarming: boolean; px: number }) {
   return (
     <motion.span
-      className="relative grid h-6 w-6 place-items-center rounded-full border-2"
-      style={{ borderColor: filled ? VERM_DARK : `${INK}66` }}
+      className="relative grid place-items-center rounded-full border-2"
+      style={{ width: px, height: px, borderColor: filled ? VERM_DARK : `${INK}66` }}
       animate={alarming ? { scale: [1, 1.14, 1] } : { scale: 1 }}
       transition={alarming ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
     >
       {filled ? (
         <motion.span
-          className="h-3.5 w-3.5 rounded-full"
-          style={{ background: `radial-gradient(circle at 40% 35%, ${VERM_BRIGHT}, ${VERM_DARK})` }}
+          className="rounded-full"
+          style={{
+            width: Math.round(px * 0.58),
+            height: Math.round(px * 0.58),
+            background: `radial-gradient(circle at 40% 35%, ${VERM_BRIGHT}, ${VERM_DARK})`,
+          }}
           initial={{ scale: 2, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.3, ease: EASE }}
@@ -313,18 +385,43 @@ function TrackerStamp({ filled, alarming }: { filled: boolean; alarming: boolean
   );
 }
 
-export function ElectionTracker({ tracker }: { tracker: number }) {
+export function ElectionTracker({ tracker, size = "md" }: { tracker: number; size?: PlateSize }) {
   const alarming = tracker >= 2;
+  if (size === "sm") {
+    // folded into the plate header on phones: label + three stamps
+    return (
+      <div className="flex items-center gap-1.5" aria-label={`Election tracker ${tracker} of 3`}>
+        <span
+          className={`${oswald.className} text-[8px] font-semibold uppercase tracking-[0.16em]`}
+          style={{ color: alarming ? VERM_DARK : INK_SOFT }}
+        >
+          Tracker
+        </span>
+        {[0, 1, 2].map((i) => (
+          <TrackerStamp key={i} filled={i < tracker} alarming={alarming && i === tracker - 1} px={16} />
+        ))}
+      </div>
+    );
+  }
   return (
-    <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: `${INK}33` }}>
-      <span className={`${oswald.className} text-[9px] font-semibold uppercase tracking-[0.2em]`} style={{ color: alarming ? VERM_DARK : INK_SOFT }}>
+    <div
+      className={`flex items-center justify-between gap-2 border-t ${size === "lg" ? "mt-2.5 pt-2.5" : "mt-2 pt-2"}`}
+      style={{ borderColor: `${INK}33` }}
+    >
+      <span
+        className={`${oswald.className} font-semibold uppercase tracking-[0.2em] ${size === "lg" ? "text-[11px]" : "text-[9px]"}`}
+        style={{ color: alarming ? VERM_DARK : INK_SOFT }}
+      >
         Election tracker
       </span>
       <div className="flex items-center gap-2">
         {[0, 1, 2].map((i) => (
-          <TrackerStamp key={i} filled={i < tracker} alarming={alarming && i === tracker - 1} />
+          <TrackerStamp key={i} filled={i < tracker} alarming={alarming && i === tracker - 1} px={size === "lg" ? 28 : 24} />
         ))}
-        <span className={`${typewriter.className} ml-1 text-[8.5px]`} style={{ color: alarming ? VERM_DARK : INK_FADE }}>
+        <span
+          className={`${typewriter.className} ml-1 ${size === "lg" ? "text-[10.5px]" : "text-[8.5px]"}`}
+          style={{ color: alarming ? VERM_DARK : INK_FADE }}
+        >
           {alarming ? "one more riot enacts the top policy" : "3rd failure: top policy enacted"}
         </span>
       </div>

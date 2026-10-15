@@ -121,30 +121,6 @@ export function Modal({
   );
 }
 
-/* ---------------- toast ---------------- */
-
-export function Toast({ message, onDone }: { message: string | null; onDone: () => void }) {
-  useEffect(() => {
-    if (!message) return;
-    const id = setTimeout(onDone, 2800);
-    return () => clearTimeout(id);
-  }, [message, onDone]);
-  return (
-    <AnimatePresence>
-      {message && (
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 10, opacity: 0 }}
-          className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 border border-blood-500/50 bg-blood-900/90 px-5 py-2.5 text-sm text-blood-300 backdrop-blur rounded-sm"
-        >
-          {message}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 /* ---------------- coin ---------------- */
 
 export function CoinIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
@@ -299,11 +275,3 @@ export const Icons = {
     </I>
   ),
 };
-
-/* ---------------- wordmark ---------------- */
-
-export function Wordmark({ className = "" }: { className?: string }) {
-  return (
-    <span className={`font-display font-black tracking-[0.28em] gold-text select-none ${className}`}>PARLOUR</span>
-  );
-}

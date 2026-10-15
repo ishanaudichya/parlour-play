@@ -73,7 +73,7 @@ export function GameOverCard({
 
   return (
     <motion.div
-      className="absolute inset-0 z-50 flex items-center justify-center p-4"
+      className="absolute inset-0 z-50 flex items-center justify-center px-4 pb-4 pt-16"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -81,7 +81,7 @@ export function GameOverCard({
       style={{ background: "rgba(4,5,9,0.74)", backdropFilter: "blur(5px)" }}
     >
       <motion.div
-        className="relative w-full max-w-sm overflow-hidden rounded-[22px] border p-6 text-center"
+        className="relative max-h-full w-full max-w-sm overflow-y-auto rounded-[22px] border p-6 text-center"
         style={{
           borderColor: `${accent}55`,
           background: "linear-gradient(170deg, #14161f 0%, #0a0b10 100%)",

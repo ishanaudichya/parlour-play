@@ -1,448 +1,102 @@
 "use client";
 
-/* The landing page IS a game table, seen from above: walnut rim, oxblood felt
-   under a lamp, the fourteen games scattered across it as physical artifacts,
-   and a paper score pad in the middle where you sign in for the night. */
+/* The door. A gig poster for game night: the fourteen games printed as a
+   festival bill, set wall to wall, and an admission ticket to start a party
+   or join one. Hover a name to see its poster; click it to open the night
+   with that game. */
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useSpring } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
-import { CardFace as CoupCard } from "@/components/games/coup/CardArt";
-import { MdCardFace } from "@/components/games/monodeal/cards";
-import { CardFace as TeenPattiCard } from "@/components/games/teenpatti/PlayingCard";
-import { CardFace as UnoCard } from "@/components/games/uno/cards";
+import { useEffect, useRef, useState } from "react";
+import { BILLING, GAME_ORDER, LINEUP, LINEUP_NARROW } from "@/components/party/catalog";
+import {
+  Barcode,
+  Bleed,
+  EASE,
+  Lineup,
+  Meta,
+  PosterFrame,
+  Spark,
+  stageName,
+  Ticket,
+  TicketHead,
+  TicketTear,
+  Ticker,
+  TopStrip,
+} from "@/components/party/stage";
 import { saveSession, useSavedName } from "@/lib/client/session";
 import { primeSound, uiClick } from "@/lib/client/synthCore";
 import { sfx } from "@/lib/client/sound";
 import { GAME_META } from "@/lib/games/registry";
 import type { GameType } from "@/lib/games/types";
 
-/* ---------------- the artifacts on the table ---------------- */
+const CARD_W = 340;
+const CARD_H = 368;
 
-function Artifact({ k }: { k: GameType }) {
-  switch (k) {
-    case "coup":
-      return <CoupCard ch="duke" className="h-auto w-full" />;
-    case "uno":
-      return <UnoCard card={{ id: "hero-uno", color: "red", symbol: "7" }} w={92} className="h-auto w-full" />;
-    case "monodeal":
-      return (
-        <MdCardFace
-          card={{ id: "hero-md", kind: "property", value: 4, color: "dark_blue", name: "Boardwalk" }}
-          w={94}
-          className="h-auto w-full"
-        />
-      );
-    case "teenpatti":
-      return <TeenPattiCard card={{ r: 14, s: "S" }} className="h-auto w-full" />;
-    case "mafia":
-      return (
-        <div className="flex aspect-5/7 w-full flex-col items-center justify-center border border-[#9d8256] bg-[radial-gradient(circle_at_50%_25%,#33242a,#101214_68%)] text-[#dcc69b]">
-          <span className="text-3xl text-[#c75164]">◆</span>
-          <span className="mt-2 text-[10px] font-semibold tracking-[0.28em]">MAFIA</span>
-          <span className="mt-1 text-[6px] uppercase tracking-[0.18em] text-[#827c72]">sealed role</span>
-        </div>
-      );
-    case "battleship":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#2e5d4a] bg-[radial-gradient(circle_at_50%_30%,#0c1d2b,#050b12_75%)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            {Array.from({ length: 6 }, (_, i) => (
-              <line key={`v${i}`} x1={7 + i * 7.2} y1="10" x2={7 + i * 7.2} y2="46" stroke="#3dde9b" strokeOpacity="0.22" strokeWidth="0.5" />
-            ))}
-            {Array.from({ length: 6 }, (_, i) => (
-              <line key={`h${i}`} x1="7" y1={10 + i * 7.2} x2="43" y2={10 + i * 7.2} stroke="#3dde9b" strokeOpacity="0.22" strokeWidth="0.5" />
-            ))}
-            <rect x="14" y="24.4" width="21.6" height="7.2" rx="3.6" fill="#3dde9b" fillOpacity="0.3" stroke="#3dde9b" strokeWidth="0.6" />
-            <circle cx="32.2" cy="20.8" r="2" fill="#ff7a45" />
-            <circle cx="18" cy="42" r="1.2" fill="#7ba8c0" fillOpacity="0.7" />
-            <text x="25" y="59" textAnchor="middle" fontSize="4.6" fontWeight="700" letterSpacing="1.6" fill="#6dffc0">BATTLESHIP</text>
-          </svg>
-        </div>
-      );
-    case "connect4":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden bg-[linear-gradient(160deg,#1b3fa0,#12266b)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            {Array.from({ length: 4 }, (_, cx) =>
-              Array.from({ length: 4 }, (_, cy) => {
-                const x = 11 + cx * 9.4;
-                const y = 17 + cy * 9.4;
-                const red = (cx === 1 && cy === 3) || (cx === 2 && cy === 2);
-                const gold = (cx === 0 && cy === 3) || (cx === 3 && cy === 3);
-                return (
-                  <circle key={`${cx}-${cy}`} cx={x} cy={y} r="3.6"
-                    fill={red ? "#e2483f" : gold ? "#f5b23e" : "#0f1d4d"}
-                    stroke={red || gold ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)"} strokeWidth="0.5" />
-                );
-              })
-            )}
-            <text x="25" y="62" textAnchor="middle" fontSize="4.4" fontWeight="700" letterSpacing="1" fill="#ffe0a3">FOUR IN A ROW</text>
-          </svg>
-        </div>
-      );
-    case "avalon":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#5a708c] bg-[radial-gradient(circle_at_50%_22%,#16233d,#0a101d_72%)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            <path d="M10,16 Q10,7 25,7 Q40,7 40,16 L40,50 L10,50 Z" fill="#101b30" stroke="#8fb8de" strokeWidth="0.7" strokeOpacity="0.7" />
-            <path d="M25,14 L25,38" stroke="#b9c6d8" strokeWidth="1.6" strokeLinecap="round" />
-            <circle cx="25" cy="12.5" r="2.6" fill="none" stroke="#cfe4f7" strokeWidth="0.9" />
-            <circle cx="19" cy="24" r="1.3" fill="#cfe4f7" opacity="0.9" />
-            <circle cx="31" cy="21" r="1" fill="#cfe4f7" opacity="0.75" />
-            <circle cx="29" cy="31" r="0.8" fill="#cfe4f7" opacity="0.6" />
-            <text x="25" y="60" textAnchor="middle" fontSize="4.8" fontWeight="700" letterSpacing="1.8" fill="#8fb8de">AVALON</text>
-          </svg>
-        </div>
-      );
-    case "secrethitler":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#b8a888] bg-[linear-gradient(175deg,#e9ddc0,#d8c9a4)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            <rect x="6" y="12" width="38" height="26" rx="1.5" fill="#e2d4b2" stroke="#1c1712" strokeWidth="0.9" />
-            <path d="M6,12 L25,27 L44,12" fill="none" stroke="#1c1712" strokeWidth="0.9" />
-            <circle cx="25" cy="33" r="3" fill="none" stroke="#1c1712" strokeWidth="0.8" />
-            <path d="M25,33 L33,30" stroke="#1c1712" strokeWidth="0.8" />
-            <g transform="rotate(-8 25 48)">
-              <rect x="10" y="44" width="30" height="8.5" fill="none" stroke="#d4491f" strokeWidth="1.1" />
-              <text x="25" y="50.5" textAnchor="middle" fontSize="4.6" fontWeight="800" letterSpacing="1" fill="#d4491f">
-                TOP SECRET
-              </text>
-            </g>
-            <text x="25" y="62" textAnchor="middle" fontSize="4" fontWeight="700" letterSpacing="0.8" fill="#1c1712">
-              SECRET HITLER
-            </text>
-            <text x="25" y="67" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a7a5c">
-              MINISTRY EYES ONLY
-            </text>
-          </svg>
-        </div>
-      );
-    case "chainreaction":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#c86bff]/60 bg-[linear-gradient(170deg,#12141c,#05060a)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            <rect x="6" y="9" width="38" height="45" rx="2" fill="#05060a" stroke="#c86bff" strokeOpacity="0.7" strokeWidth="0.6" />
-            {Array.from({ length: 3 }, (_, i) => (
-              <line key={`v${i}`} x1={15.5 + i * 9.5} y1="9" x2={15.5 + i * 9.5} y2="54" stroke="#c86bff" strokeOpacity="0.45" strokeWidth="0.4" />
-            ))}
-            {Array.from({ length: 4 }, (_, i) => (
-              <line key={`h${i}`} x1="6" y1={18 + i * 9} x2="44" y2={18 + i * 9} stroke="#c86bff" strokeOpacity="0.45" strokeWidth="0.4" />
-            ))}
-            <circle cx="10.75" cy="13.5" r="2.2" fill="#ff4b5c" />
-            <circle cx="10" cy="12.8" r="0.7" fill="#fff" fillOpacity="0.7" />
-            <circle cx="37.5" cy="49.5" r="2.2" fill="#3ddc84" />
-            <circle cx="41.5" cy="49.5" r="2.2" fill="#3ddc84" />
-            <circle cx="20.25" cy="31.5" r="2.2" fill="#4a8dff" />
-            <circle cx="27.5" cy="40.5" r="4.5" fill="#c86bff" fillOpacity="0.2" stroke="#e6c6ff" strokeWidth="0.5" strokeOpacity="0.7" />
-            <circle cx="27.5" cy="35" r="1.6" fill="#c86bff" />
-            <circle cx="27.5" cy="46" r="1.6" fill="#c86bff" />
-            <circle cx="22" cy="40.5" r="1.6" fill="#c86bff" />
-            <circle cx="33" cy="40.5" r="1.6" fill="#c86bff" />
-            <text x="25" y="62" textAnchor="middle" fontSize="4.2" fontWeight="700" letterSpacing="0.9" fill="#e6c6ff">CHAIN REACTION</text>
-            <text x="25" y="67" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a90a3">FILL · BURST · CONVERT</text>
-          </svg>
-        </div>
-      );
-    case "ludo":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border-[3px] border-[#2b1510] bg-[#f3e9d2]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            <rect x="1" y="1" width="48" height="68" fill="none" stroke="#c9a45c" strokeWidth="0.8" />
-            {/* a mini cross board */}
-            <rect x="7" y="13" width="14" height="14" rx="1.5" fill="#c8402e" />
-            <rect x="29" y="13" width="14" height="14" rx="1.5" fill="#2e7d5b" />
-            <rect x="7" y="35" width="14" height="14" rx="1.5" fill="#2f5da8" />
-            <rect x="29" y="35" width="14" height="14" rx="1.5" fill="#dfa62a" />
-            {[[10, 16], [16, 16], [10, 22], [16, 22]].map(([x, y]) => (
-              <circle key={`r${x}${y}`} cx={x + 1} cy={y + 1} r="1.9" fill="#f3e9d2" fillOpacity="0.9" />
-            ))}
-            <rect x="21" y="13" width="8" height="36" fill="#f3e9d2" stroke="#4a3220" strokeOpacity="0.35" strokeWidth="0.4" />
-            <rect x="7" y="27" width="36" height="8" fill="#f3e9d2" stroke="#4a3220" strokeOpacity="0.35" strokeWidth="0.4" />
-            <rect x="21" y="27" width="8" height="8" fill="#4a3220" fillOpacity="0.08" />
-            <path d="M21,27 L29,27 L25,31 Z" fill="#2e7d5b" />
-            <path d="M21,27 L21,35 L25,31 Z" fill="#c8402e" />
-            <path d="M29,27 L29,35 L25,31 Z" fill="#dfa62a" />
-            <path d="M21,35 L29,35 L25,31 Z" fill="#2f5da8" />
-            <circle cx="25" cy="31" r="1.3" fill="#c9a45c" />
-            <circle cx="24" cy="18" r="2.2" fill="#c8402e" stroke="#7a1f14" strokeWidth="0.4" />
-            <circle cx="23.4" cy="17.4" r="0.6" fill="#fff" fillOpacity="0.7" />
-            <circle cx="38" cy="31" r="2.2" fill="#dfa62a" stroke="#8a6210" strokeWidth="0.4" />
-            {/* die */}
-            <g transform="rotate(-12 38 58)">
-              <rect x="33" y="53" width="10" height="10" rx="2" fill="#fffaf0" stroke="#bba77e" strokeWidth="0.5" />
-              {[[35.5, 55.5], [40.5, 55.5], [35.5, 60.5], [40.5, 60.5], [38, 58]].map(([x, y]) => (
-                <circle key={`${x}${y}`} cx={x} cy={y} r="0.85" fill="#231a12" />
-              ))}
-            </g>
-            <text x="18" y="61" textAnchor="middle" fontSize="7.5" fontWeight="700" fontFamily="Georgia, serif" fill="#2b1510">
-              Ludo
-            </text>
-            <text x="25" y="67" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a7a5c">
-              ROLL · RACE · HOME
-            </text>
-          </svg>
-        </div>
-      );
-    case "dots":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border border-[#c9bfa6] bg-[#fbf7ec]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            {Array.from({ length: 12 }, (_, i) => (
-              <line key={`g${i}`} x1="0" y1={i * 5} x2="50" y2={i * 5} stroke="rgba(80,130,200,0.18)" strokeWidth="0.3" />
-            ))}
-            <line x1="6" y1="0" x2="6" y2="70" stroke="rgba(214,70,70,0.45)" strokeWidth="0.4" />
-            <rect x="14.6" y="14.6" width="8.8" height="8.8" fill="#2457c5" opacity="0.18" />
-            <text x="19" y="21.6" textAnchor="middle" fontSize="6" fontWeight="700" fill="#2457c5">A</text>
-            <path d="M14 14 H24 V24 H14 Z M24 14 H34 M34 14 V24 M24 34 H34" fill="none" stroke="#2457c5" strokeWidth="0.9" strokeLinecap="round" />
-            <path d="M14 24 V34 M24 24 V34 M34 24 V34" fill="none" stroke="#d23a32" strokeWidth="0.9" strokeLinecap="round" />
-            {[14, 24, 34].map((y) => [14, 24, 34].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="0.9" fill="#2c2f3a" />))}
-            <text x="25" y="52" textAnchor="middle" fontSize="6.4" fontWeight="700" fill="#23262f" fontFamily="cursive">Dots &amp; Boxes</text>
-            <text x="25" y="59" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#8a7a5c">DRAW · CLOSE · AGAIN</text>
-          </svg>
-        </div>
-      );
-    case "staccs":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border-[3px] border-[#0b1a4a] bg-[radial-gradient(circle_at_50%_20%,#2a57d6,#13308f_70%)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            {[[25, 16, "#ffffff"], [25, 27, "#ffffff"], [34.5, 32.5, "#ffffff"], [25, 38, "#5b8dff"]].map(([x, y, c], i) => (
-              <g key={i} transform={`translate(${x} ${y})`}>
-                <polygon points="0,-6 5.2,-3 0,0 -5.2,-3" fill={c as string} />
-                <polygon points="-5.2,-3 0,0 0,6 -5.2,3" fill={i === 3 ? "#3a6cf0" : "#eef1f8"} />
-                <polygon points="5.2,-3 0,0 0,6 5.2,3" fill={i === 3 ? "#2a56d4" : "#dde3ee"} />
-                <polygon points="0,-6 5.2,-3 5.2,3 0,6 -5.2,3 -5.2,-3" fill="none" stroke="#c3cbdb" strokeWidth="0.4" />
-              </g>
-            ))}
-            <path d="M-2.6 1.2 l1.3 -1 l1.3 1 l-1.3 1.6z" transform="translate(23.5 30)" fill="#e8364a" />
-            <text x="27.2" y="32.4" fontSize="3.6" fontWeight="800" fill="#e8364a">7</text>
-            <text x="36.6" y="37.6" fontSize="3.6" fontWeight="800" fill="#1c2233">7</text>
-            <text x="25" y="59" textAnchor="middle" fontSize="6" fontWeight="800" letterSpacing="0.8" fill="#ffffff">STACCS</text>
-            <text x="25" y="65" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#bcd0ff">MATCH · STACC · UH OH</text>
-          </svg>
-        </div>
-      );
-    case "tanks":
-      return (
-        <div className="relative aspect-5/7 w-full overflow-hidden border-[3px] border-[#2b2f25] bg-[linear-gradient(180deg,#170d31,#932f5c_55%,#ffbd73)]">
-          <svg viewBox="0 0 50 70" className="h-full w-full" aria-hidden>
-            <circle cx="34" cy="30" r="7" fill="#ffe2a8" opacity="0.9" />
-            <path d="M0,38 L8,38 L10,32 L22,32 L24,38 L50,38 V70 H0 Z" fill="#4b1f45" />
-            <path d="M0,46 Q10,41 18,43 Q26,46 30,40 Q35,48 40,47 Q45,42 50,43 V70 H0 Z" fill="#c4683a" />
-            <path d="M0,46 Q10,41 18,43 Q26,46 30,40 Q35,48 40,47 Q45,42 50,43" fill="none" stroke="#ffc98a" strokeWidth="0.8" />
-            <path d="M12,40 Q24,14 41,41" fill="none" stroke="#fff3d8" strokeWidth="0.6" strokeDasharray="1 1.6" />
-            <g transform="translate(11 43)">
-              <rect x="-4.5" y="-2.4" width="9" height="2.4" rx="1.2" fill="#1b1d18" />
-              <path d="M-4 -2.6 L4 -2.6 L3.2 -4 L-3.4 -4 Z" fill="#e5483a" />
-              <path d="M-2 -4 A2.2 2 0 0 1 2.4 -4 Z" fill="#e5483a" />
-              <line x1="0" y1="-4.4" x2="4" y2="-7.4" stroke="#3a3d35" strokeWidth="0.9" />
-            </g>
-            <circle cx="41" cy="41" r="4.2" fill="#ffd27a" opacity="0.85" />
-            <circle cx="41" cy="41" r="2" fill="#ffffff" />
-            <rect x="4" y="54" width="42" height="9" fill="#2b2f25" />
-            <text x="25" y="60.6" textAnchor="middle" fontSize="4.6" fontWeight="800" letterSpacing="0.8" fill="#f2b134">POCKET TANKS</text>
-            <text x="25" y="67.2" textAnchor="middle" fontSize="2.4" letterSpacing="0.6" fill="#ffe2c0">DRAFT · AIM · FIRE</text>
-          </svg>
-        </div>
-      );
-    default:
-      return null;
-  }
-}
-
-/* desktop scatter: left/top as % of the felt, like things tossed on a table */
-const SCATTER: { key: GameType; x: string; y: string; rot: number; w: number; z?: number }[] = [
-  { key: "coup", x: "6%", y: "11%", rot: -9, w: 96 },
-  { key: "uno", x: "14.5%", y: "24%", rot: 7, w: 90, z: 1 },
-  { key: "avalon", x: "33%", y: "5%", rot: -4, w: 90 },
-  { key: "battleship", x: "76%", y: "8%", rot: 5, w: 94 },
-  { key: "secrethitler", x: "63%", y: "17%", rot: -3, w: 88, z: 1 },
-  { key: "monodeal", x: "4.5%", y: "58%", rot: -5, w: 96 },
-  { key: "teenpatti", x: "15%", y: "72%", rot: -12, w: 88, z: 1 },
-  { key: "connect4", x: "86%", y: "38%", rot: 7, w: 92 },
-  { key: "mafia", x: "75%", y: "68%", rot: 9, w: 92 },
-  { key: "chainreaction", x: "87%", y: "58%", rot: -6, w: 90, z: 1 },
-  { key: "ludo", x: "23.5%", y: "3%", rot: 5, w: 86 },
-  { key: "tanks", x: "3.5%", y: "35%", rot: -7, w: 88, z: 1 },
-  { key: "staccs", x: "88%", y: "80%", rot: 6, w: 84 },
-  { key: "dots", x: "26%", y: "76%", rot: 8, w: 82 },
-];
-
-const TOSS = { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const };
-
-function TapeLabel({ k }: { k: GameType }) {
+/** The poster that follows your cursor along the bill. */
+function HoverCard({ k, x, y }: { k: GameType | null; x: ReturnType<typeof useSpring>; y: ReturnType<typeof useSpring> }) {
   return (
-    <span
-      className="mt-1.5 inline-block max-w-full -rotate-2 truncate bg-[#efe6cf]/95 px-2 py-[1px] font-hand text-[13px] font-semibold leading-tight text-[#463d2e] shadow-[0_1px_3px_rgba(0,0,0,0.45)]"
-      style={{ borderLeft: "3px solid rgba(0,0,0,0.08)", borderRight: "3px solid rgba(0,0,0,0.08)" }}
-    >
-      <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: GAME_META[k].accent }} />
-      {GAME_META[k].title}
-    </span>
-  );
-}
-
-/* ---------------- table props ---------------- */
-
-function ChipStack({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 60 44" className={className} aria-hidden>
-      {[30, 24, 18].map((cy, i) => (
-        <g key={i}>
-          <ellipse cx="26" cy={cy} rx="20" ry="7.5" fill={i === 1 ? "#b23a48" : "#2c4a6e"} stroke="rgba(0,0,0,0.4)" strokeWidth="0.6" />
-          <ellipse cx="26" cy={cy - 2.5} rx="20" ry="7.5" fill={i === 1 ? "#d0596a" : "#3d6291"} stroke="rgba(255,255,255,0.25)" strokeWidth="0.5" />
-          {[-14, 0, 14].map((dx) => (
-            <rect key={dx} x={25 + dx} y={cy - 2} width="3" height="6" rx="1" fill="#f2ead8" opacity="0.85" />
-          ))}
-        </g>
-      ))}
-      <ellipse cx="46" cy="34" rx="12" ry="4.6" fill="#8f5c28" stroke="rgba(0,0,0,0.4)" strokeWidth="0.5" />
-      <ellipse cx="46" cy="32.4" rx="12" ry="4.6" fill="#d4a05c" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-    </svg>
-  );
-}
-
-function Dice({ className = "" }: { className?: string }) {
-  const pip = (x: number, y: number) => <circle cx={x} cy={y} r="1.6" fill="#2e2a24" />;
-  return (
-    <svg viewBox="0 0 52 30" className={className} aria-hidden>
-      <g transform="rotate(-8 14 15)">
-        <rect x="4" y="5" width="20" height="20" rx="4" fill="#f2ead8" stroke="rgba(0,0,0,0.35)" strokeWidth="0.7" />
-        {pip(9, 10)}{pip(14, 15)}{pip(19, 20)}
-      </g>
-      <g transform="rotate(11 38 15)">
-        <rect x="28" y="4" width="20" height="20" rx="4" fill="#b23a48" stroke="rgba(0,0,0,0.35)" strokeWidth="0.7" />
-        <g fill="#f2ead8">
-          <circle cx="33" cy="9" r="1.6" /><circle cx="43" cy="9" r="1.6" />
-          <circle cx="33" cy="19" r="1.6" /><circle cx="43" cy="19" r="1.6" />
-          <circle cx="38" cy="14" r="1.6" />
-        </g>
-      </g>
-    </svg>
-  );
-}
-
-function Pencil({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 120 14" className={className} aria-hidden>
-      <rect x="14" y="3.5" width="88" height="7" rx="1" fill="#c99a3f" />
-      <rect x="14" y="3.5" width="88" height="2.3" fill="#e0b45a" />
-      <polygon points="14,3.5 2,7 14,10.5" fill="#e8d9b0" />
-      <polygon points="6.5,5.8 2,7 6.5,8.4" fill="#3a3630" />
-      <rect x="102" y="3" width="7" height="8" rx="1" fill="#9aa3ad" />
-      <rect x="109" y="3.5" width="8" height="7" rx="2.5" fill="#d98a80" />
-    </svg>
-  );
-}
-
-/* ---------------- the score pad (the actual form) ---------------- */
-
-function ScorePad({
-  name, setName, code, setCode, busy, error, onCreate, onJoin, nameRef,
-}: {
-  name: string; setName: (s: string) => void;
-  code: string; setCode: (s: string) => void;
-  busy: "create" | "join" | null; error: string | null;
-  onCreate: () => void; onJoin: () => void;
-  nameRef: React.RefObject<HTMLInputElement | null>;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 26, rotate: 0.5 }}
-      animate={{ opacity: 1, y: 0, rotate: -1.2 }}
-      transition={{ delay: 0.35, ...TOSS }}
-      className="relative w-full max-w-[380px]"
-    >
-      {/* coffee ring, half under the pad */}
-      <div
-        aria-hidden
-        className="absolute -left-12 -top-10 h-24 w-24 rounded-full opacity-25"
-        style={{ border: "7px solid #6b4a2a", boxShadow: "inset 0 0 0 2px rgba(107,74,42,0.4)" }}
-      />
-      <div
-        className="relative px-7 pb-6 pt-7 text-[#2e2a24] shadow-[0_24px_60px_rgba(0,0,0,0.55),0_4px_14px_rgba(0,0,0,0.4)]"
-        style={{
-          background:
-            "repeating-linear-gradient(transparent 0px, transparent 30px, rgba(60,50,40,0.08) 30px, rgba(60,50,40,0.08) 31px), linear-gradient(180deg, #f4edda 0%, #efe6cf 100%)",
-          borderRadius: "3px 3px 5px 4px",
-        }}
-      >
-        {/* red margin line */}
-        <span aria-hidden className="absolute bottom-0 left-9 top-0 w-px bg-[#c26a5a]/45" />
-        {/* binder holes */}
-        <span aria-hidden className="absolute left-1/2 top-2 flex -translate-x-1/2 gap-16">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="h-2.5 w-2.5 rounded-full bg-[#1d120a]/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]" />
-          ))}
-        </span>
-
-        <div className="font-hand text-[34px] font-bold leading-none text-[#463d2e]">Game night?</div>
-        <div className="mt-1 font-hand text-[17px] text-[#7a6d58]">pull up a chair — fourteen games on the table</div>
-
-        <label className="mt-6 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a7d68]" htmlFor="pad-name">
-          Your name
-        </label>
-        <input
-          id="pad-name"
-          ref={nameRef}
-          value={name}
-          maxLength={16}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onCreate()}
-          onFocus={() => primeSound()}
-          placeholder="write it here…"
-          className="mt-1 w-full border-b-2 border-dashed border-[#a89878] bg-transparent pb-1 font-hand text-[26px] font-semibold text-[#2e2a24] outline-none placeholder:text-[#b3a68c] focus:border-[#b3402e]"
-        />
-
-        <button
-          type="button"
-          disabled={!name.trim() || busy !== null}
-          onClick={() => { uiClick(); onCreate(); }}
-          className="mt-5 w-full -rotate-1 rounded-[4px] border-[2.5px] border-[#a63c2b] px-4 py-3 text-[13px] font-bold uppercase tracking-[0.24em] text-[#a63c2b] shadow-[inset_0_0_0_1.5px_rgba(166,60,43,0.35)] transition-all duration-150 hover:bg-[#a63c2b]/10 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35"
-        >
-          {busy === "create" ? "Stamping…" : "⬢ Open a table"}
-        </button>
-
-        <div className="mt-5 flex items-center gap-2">
-          <span className="h-px flex-1 bg-[#a89878]/50" />
-          <span className="font-hand text-[15px] text-[#8a7d68]">or got an invitation?</span>
-          <span className="h-px flex-1 bg-[#a89878]/50" />
-        </div>
-
-        {/* ticket stub */}
-        <div className="mt-3 flex items-stretch overflow-hidden rounded-[4px] border border-[#b3a68c] bg-[#e9dfc6]">
-          <span aria-hidden className="my-1 border-l-2 border-dashed border-[#a89878]/70" />
-          <input
-            value={code}
-            maxLength={5}
-            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-            onKeyDown={(e) => e.key === "Enter" && onJoin()}
-            placeholder="CODE"
-            className="w-0 flex-1 bg-transparent px-3 py-2.5 text-center font-shell text-[17px] tracking-[0.4em] text-[#4c331d] outline-none placeholder:tracking-[0.2em] placeholder:text-[#b3a68c]"
-          />
-          <button
-            type="button"
-            disabled={busy !== null || code.trim().length < 4}
-            onClick={() => { uiClick(); onJoin(); }}
-            className="border-l border-dashed border-[#a89878] px-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[#6b4a2a] transition hover:bg-[#6b4a2a]/10 disabled:pointer-events-none disabled:opacity-35"
+    <motion.div className="pointer-events-none fixed left-0 top-0 z-40 hidden lg:block" style={{ x, y }}>
+      <AnimatePresence>
+        {k && (
+          <motion.div
+            key="card"
+            initial={{ opacity: 0, scale: 0.9, rotate: -6 }}
+            animate={{ opacity: 1, scale: 1, rotate: -2.5 }}
+            exit={{ opacity: 0, scale: 0.94, rotate: -4 }}
+            transition={{ duration: 0.22, ease: EASE }}
+            className="overflow-hidden rounded-2xl border border-seam bg-soot shadow-[0_30px_70px_rgba(0,0,0,0.6)]"
+            style={{ width: CARD_W }}
           >
-            Join
-          </button>
-        </div>
-
-        {error && <p className="mt-3 font-hand text-[16px] font-semibold text-[#a63c2b]">✗ {error}</p>}
-
-        <div className="mt-6 font-hand text-[15.5px] leading-snug text-[#7a6d58]">
-          1. gather your people &nbsp; 2. the host deals &nbsp; 3. wins go on the board
-        </div>
-        <div
-          className="mt-3 inline-block rotate-[-3deg] border-[1.5px] border-[#8a7d68]/60 px-2 py-[2px] text-[9px] font-bold uppercase tracking-[0.24em] text-[#8a7d68]/80"
-          aria-hidden
-        >
-          No accounts · free · 2–8 players
-        </div>
-      </div>
+            <PosterFrame k={k} rounded="rounded-none" />
+            <div className="px-4 pb-4 pt-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-poster text-[30px] font-extrabold uppercase leading-none">{stageName(k)}</span>
+                <Meta k={k} className="shrink-0 text-dust" />
+              </div>
+              <p className="mt-2 font-ui text-[13.5px] leading-snug text-dust">{BILLING[k].pitch}</p>
+              <p className="smallprint mt-3 text-flare">Click to open the night with it</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** Phones: tap a name, read the bill. */
+function Sheet({ k, onClose, onPick }: { k: GameType | null; onClose: () => void; onPick: (k: GameType) => void }) {
+  return (
+    <AnimatePresence>
+      {k && (
+        <motion.div className="fixed inset-0 z-50 flex items-end lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div className="absolute inset-0 bg-void/70 backdrop-blur-[2px]" onClick={onClose} />
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ duration: 0.36, ease: EASE }}
+            className="relative w-full rounded-t-[26px] border-t border-seam bg-soot px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-4"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-seam" />
+            <PosterFrame k={k} />
+            <div className="mt-3 flex items-baseline justify-between gap-3">
+              <span className="font-poster text-[38px] font-extrabold uppercase leading-none">{stageName(k)}</span>
+              <Meta k={k} className="shrink-0 text-dust" />
+            </div>
+            <p className="mt-1 font-aside text-[19px] italic text-bone/80">{GAME_META[k].tagline}</p>
+            <p className="mt-2 font-ui text-[14px] leading-snug text-dust">{BILLING[k].pitch}</p>
+            <button
+              type="button"
+              onClick={() => onPick(k)}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-flare py-3.5 font-poster text-[22px] font-extrabold uppercase tracking-[0.04em] text-void active:scale-[0.99]"
+            >
+              Open the night with it <span aria-hidden>→</span>
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -455,10 +109,72 @@ export function Landing() {
   const [code, setCode] = useState(params.get("join")?.toUpperCase() ?? "");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pick, setPick] = useState<GameType | null>(null);
+  const [hover, setHover] = useState<GameType | null>(null);
+  const [sheet, setSheet] = useState<GameType | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
+  const codeRef = useRef<HTMLInputElement | null>(null);
+  const ticketRef = useRef<HTMLElement | null>(null);
+  const [ticketSeen, setTicketSeen] = useState(true);
+
+  // phones: watch for the ticket scrolling into view
+  useEffect(() => {
+    const el = ticketRef.current;
+    if (!el || !window.matchMedia("(max-width: 1023px)").matches) return;
+    const io = new IntersectionObserver(([e]) => setTicketSeen(e.isIntersecting), { threshold: 0.35 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  function toTicket(input: React.RefObject<HTMLInputElement | null>) {
+    uiClick();
+    ticketRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => input.current?.focus({ preventScroll: true }), 420);
+  }
+
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sx = useSpring(mx, { stiffness: 420, damping: 36, mass: 0.6 });
+  const sy = useSpring(my, { stiffness: 420, damping: 36, mass: 0.6 });
+
+  useEffect(() => {
+    if (params.get("join")) codeRef.current?.focus();
+  }, [params]);
+
+  /** The card sits above or below the hovered name, never over it. */
+  function onHover(k: GameType | null, el?: HTMLElement, e?: React.PointerEvent) {
+    setHover(k);
+    if (!k || !el) return;
+    const r = el.getBoundingClientRect();
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const cx = e ? e.clientX : r.left + r.width / 2;
+    const x = Math.max(12, Math.min(W - CARD_W - 12, cx - CARD_W / 2));
+    const below = r.bottom + 14;
+    const y = below + CARD_H < H - 8 ? below : Math.max(8, r.top - 14 - CARD_H);
+    if (!hover) {
+      mx.jump(x);
+      my.jump(y);
+      sx.jump(x);
+      sy.jump(y);
+    }
+    mx.set(x);
+    my.set(y);
+  }
+
+  function choose(k: GameType) {
+    uiClick();
+    setPick(k);
+    setSheet(null);
+    if (window.matchMedia("(max-width: 1023px)").matches) toTicket(nameRef);
+    else setTimeout(() => nameRef.current?.focus(), 60);
+  }
 
   async function createParty() {
-    if (!name.trim() || busy) return;
+    if (!name.trim() || busy) {
+      if (!name.trim()) nameRef.current?.focus();
+      return;
+    }
     setBusy("create");
     setError(null);
     try {
@@ -469,15 +185,15 @@ export function Landing() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Could not open a table.");
+        setError(data.error ?? "Couldn't open a table.");
         setBusy(null);
         return;
       }
       saveSession(data.code, { playerId: data.playerId, secret: data.secret, name: name.trim() });
       sfx("start");
-      router.push(`/p/${data.code}`);
+      router.push(`/p/${data.code}${pick ? `?pick=${pick}` : ""}`);
     } catch {
-      setError("Network error — try again.");
+      setError("Network trouble — try again.");
       setBusy(null);
     }
   }
@@ -485,119 +201,229 @@ export function Landing() {
   function joinParty() {
     const c = code.trim().toUpperCase();
     if (c.length < 4) {
-      setError("That code looks short.");
+      setError("That code looks short — they're five characters.");
+      codeRef.current?.focus();
       return;
     }
     setBusy("join");
     router.push(`/p/${c}`);
   }
 
-  return (
-    <main className="relative flex min-h-dvh flex-col p-2.5 sm:p-5">
-      {/* the walnut rim */}
-      <div
-        className="relative flex min-h-[calc(100dvh-20px)] flex-1 flex-col rounded-[26px] p-2.5 sm:min-h-[calc(100dvh-40px)] sm:rounded-[34px] sm:p-3.5"
-        style={{
-          background: "linear-gradient(160deg, #3a2413 0%, #241407 55%, #170c05 100%)",
-          boxShadow: "inset 0 1px 0 rgba(232,192,135,0.18), inset 0 -2px 8px rgba(0,0,0,0.6), 0 30px 80px rgba(0,0,0,0.6)",
-        }}
-      >
-        {/* the felt */}
-        <div
-          className="relative flex flex-1 flex-col overflow-hidden rounded-[18px] sm:rounded-[24px]"
-          style={{
-            background:
-              "radial-gradient(110% 85% at 50% 18%, #4d222c 0%, #38161f 48%, #250d14 100%)",
-            boxShadow: "inset 0 0 90px rgba(0,0,0,0.65), inset 0 2px 4px rgba(0,0,0,0.5)",
+  const ticket = (
+    <Ticket className="w-full">
+      <TicketHead
+        left={
+          <>
+            <Spark size={9} /> Admit one · game night
+          </>
+        }
+        right="Nº 14"
+      />
+      <div className="px-5 pb-1 pt-4 sm:px-6">
+        <label htmlFor="door-name" className="smallprint text-void/55">
+          Your name
+        </label>
+        <input
+          id="door-name"
+          ref={nameRef}
+          value={name}
+          maxLength={16}
+          autoComplete="nickname"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && createParty()}
+          onFocus={() => primeSound()}
+          placeholder="Who's coming?"
+          className="mt-0.5 w-full border-b-2 border-void/15 bg-transparent pb-1 font-aside text-[36px] leading-tight text-void outline-none transition placeholder:text-void/25 focus:border-flare"
+        />
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => {
+            uiClick();
+            void createParty();
           }}
+          className="group mt-4 flex w-full items-center justify-between rounded-2xl bg-void px-5 py-3.5 text-bone transition hover:bg-[#25211c] active:scale-[0.99] disabled:opacity-60"
         >
-          {/* lamp pool */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ background: "radial-gradient(52% 44% at 50% 40%, rgba(232,192,135,0.13) 0%, transparent 70%)" }}
-          />
-
-          {/* brass nameplate on the rim edge */}
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.5 }}
-            className="relative z-10 mx-auto mt-4 flex flex-col items-center sm:mt-6"
-          >
-            <span className="font-shell neon-text text-[42px] leading-none sm:text-[54px]" translate="no">
-              Parlour
+          <span className="font-poster text-[26px] font-extrabold uppercase leading-none tracking-[0.03em]">
+            {busy === "create" ? "Opening…" : "Start a party"}
+          </span>
+          <span aria-hidden className="nudge text-[22px] text-flare">
+            →
+          </span>
+        </button>
+        <div className="mt-2.5 flex min-h-[22px] items-center justify-between gap-2">
+          {pick ? (
+            <span className="smallprint flex items-center gap-2 text-void/70">
+              Opening with
+              <span className="rounded-full bg-void px-2 py-0.5 text-bone">{stageName(pick)}</span>
+              <button type="button" onClick={() => setPick(null)} className="text-void/45 hover:text-void" aria-label="Clear the opening game">
+                ✕
+              </button>
             </span>
-            <span className="slabel mt-2">fourteen games · one table · tonight</span>
-          </motion.div>
-
-          {/* desktop: artifacts scattered on the felt */}
-          <div className="absolute inset-0 hidden lg:block" aria-hidden={false}>
-            {SCATTER.map((a, i) => (
-              <motion.button
-                key={a.key}
-                type="button"
-                onClick={() => {
-                  uiClick();
-                  nameRef.current?.focus();
-                }}
-                title={`${GAME_META[a.key].title} — ${GAME_META[a.key].tagline}`}
-                className="absolute flex flex-col items-center text-left"
-                style={{ left: a.x, top: a.y, width: a.w, zIndex: a.z ?? 0 }}
-                initial={{ opacity: 0, scale: 1.18, y: -36, rotate: a.rot * 2.2 }}
-                animate={{ opacity: 1, scale: 1, y: 0, rotate: a.rot }}
-                transition={{ delay: 0.28 + i * 0.07, ...TOSS }}
-                whileHover={{ y: -7, scale: 1.05, rotate: a.rot / 2, zIndex: 20, transition: { duration: 0.18 } }}
-              >
-                <span className="block w-full overflow-hidden rounded-[7px] shadow-[0_14px_28px_rgba(0,0,0,0.55),0_3px_8px_rgba(0,0,0,0.4)]">
-                  <Artifact k={a.key} />
-                </span>
-                <TapeLabel k={a.key} />
-              </motion.button>
-            ))}
-
-            {/* props */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.0, duration: 0.6 }}>
-              <ChipStack className="absolute left-[24%] top-[76%] w-[74px] drop-shadow-[0_6px_10px_rgba(0,0,0,0.5)]" />
-              <Dice className="absolute left-[66%] top-[26%] w-[64px] drop-shadow-[0_5px_8px_rgba(0,0,0,0.5)]" />
-              <Pencil className="absolute left-[58%] top-[79%] w-[130px] rotate-[24deg] drop-shadow-[0_5px_8px_rgba(0,0,0,0.5)]" />
-            </motion.div>
-          </div>
-
-          {/* mobile: a loose hand of artifacts above the pad */}
-          <div className="relative z-10 mx-auto mt-5 flex max-w-[360px] flex-wrap items-start justify-center gap-x-2 gap-y-3 px-3 lg:hidden">
-            {SCATTER.map((a, i) => (
-              <motion.div
-                key={a.key}
-                className="w-[64px]"
-                style={{ rotate: a.rot / 1.5 }}
-                initial={{ opacity: 0, y: -16, scale: 1.1 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: 0.25 + i * 0.05, ...TOSS }}
-              >
-                <span className="block w-full overflow-hidden rounded-[5px] shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
-                  <Artifact k={a.key} />
-                </span>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* the score pad */}
-          <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-8 sm:py-10">
-            <ScorePad
-              name={name}
-              setName={setName}
-              code={code}
-              setCode={setCode}
-              busy={busy}
-              error={error}
-              onCreate={createParty}
-              onJoin={joinParty}
-              nameRef={nameRef}
-            />
-          </div>
+          ) : (
+            <span className="smallprint text-void/45">You host · send the link · pick a game</span>
+          )}
         </div>
       </div>
+
+      <TicketTear />
+
+      <div className="px-5 pb-5 pt-1 sm:px-6">
+        <label htmlFor="door-code" className="smallprint text-void/55">
+          Got an invite code?
+        </label>
+        <div className="mt-1.5 flex items-stretch gap-2">
+          <input
+            id="door-code"
+            ref={codeRef}
+            value={code}
+            maxLength={5}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && joinParty()}
+            onFocus={() => primeSound()}
+            placeholder="•••••"
+            aria-label="Party code"
+            className="w-0 min-w-0 flex-1 rounded-xl border-2 border-void/15 bg-transparent px-3 py-2 text-center font-mono text-[24px] font-semibold tracking-[0.42em] text-void outline-none transition placeholder:text-void/20 focus:border-void"
+          />
+          <button
+            type="button"
+            disabled={busy !== null || code.trim().length < 4}
+            onClick={() => {
+              uiClick();
+              joinParty();
+            }}
+            className="rounded-xl bg-flare px-5 font-poster text-[22px] font-extrabold uppercase tracking-[0.04em] text-void transition hover:bg-flare-hi active:scale-[0.98] disabled:bg-void/10 disabled:text-void/30"
+          >
+            {busy === "join" ? "…" : "Join"}
+          </button>
+        </div>
+        {error && <p className="mt-2 font-ui text-[13px] font-medium text-[#c2341b]">{error}</p>}
+        <div className="mt-4 flex items-end justify-between gap-4">
+          <Barcode seed={name || "PARLOUR"} className="h-7 w-28 text-void/80" />
+          <span className="smallprint text-right leading-relaxed text-void/45">
+            No accounts
+            <br />
+            No downloads
+          </span>
+        </div>
+      </div>
+    </Ticket>
+  );
+
+  return (
+    <main className="relative flex min-h-dvh flex-col overflow-hidden lg:h-dvh lg:min-h-[640px]">
+      <Bleed className="-bottom-56 -left-56" size={720} />
+      <Bleed className="-right-40 -top-48 opacity-50" color="var(--color-sun)" size={520} />
+
+      <TopStrip>
+        <span className="smallprint hidden text-dust sm:inline">14 games</span>
+        <span className="smallprint hidden text-dust sm:inline">2–8 players</span>
+        <span className="smallprint text-dust">Free · no sign-up</span>
+      </TopStrip>
+      <Ticker
+        className="smallprint relative z-10 border-y border-seam py-2 text-dust"
+        items={[
+          "Now showing",
+          ...GAME_ORDER.map((k) => stageName(k)),
+          "Doors whenever",
+          "Entry free",
+          "Two to eight a table",
+          "Bring a phone each",
+        ]}
+        seconds={70}
+      />
+
+      <div className="relative z-10 mx-auto grid w-full max-w-[1600px] flex-1 grid-cols-1 gap-x-14 gap-y-8 px-4 pb-24 sm:px-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(360px,400px)] lg:grid-rows-[minmax(0,1fr)_auto] lg:px-10 lg:pb-10">
+        {/* the bill */}
+        <section className="flex min-w-0 flex-col lg:col-start-1 lg:row-start-1 lg:min-h-0" aria-label="The games">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: EASE }}
+            className="flex items-end justify-between gap-4 border-b border-seam pb-3 pt-2 lg:pt-6"
+          >
+            <span className="font-aside text-[26px] italic leading-none text-bone/85 sm:text-[30px]">Parlour presents</span>
+            <span className="smallprint hidden pb-0.5 text-dust sm:inline">Live tonight · on every phone</span>
+          </motion.div>
+
+          <div className="hidden min-h-0 flex-1 py-5 lg:block" onPointerLeave={() => setHover(null)}>
+            <Lineup rows={LINEUP} fillHeight autoplay active={hover} pinned={pick} onHover={onHover} onPick={(k) => choose(k)} />
+          </div>
+          <div className="pt-4 lg:hidden">
+            <Lineup rows={LINEUP_NARROW} maxFont={120} autoplay pinned={pick} onPick={(k, p) => (p === "mouse" ? choose(k) : setSheet(k))} />
+            <p className="smallprint mt-2 text-ash">Tap a name to read the bill</p>
+          </div>
+        </section>
+
+        {/* the ticket */}
+        <motion.section
+          ref={ticketRef}
+          initial={{ opacity: 0, y: 30, rotate: 2 }}
+          animate={{ opacity: 1, y: 0, rotate: 0 }}
+          transition={{ delay: 0.25, duration: 0.8, ease: EASE }}
+          className="mx-auto flex w-full max-w-[420px] scroll-mt-6 flex-col justify-center lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-w-none"
+          aria-label="Start or join a party"
+        >
+          <div className="bob">{ticket}</div>
+          <p className="mt-4 text-center font-aside text-[17px] italic text-dust">
+            One person starts the party, everyone else joins with the code.
+          </p>
+        </motion.section>
+
+        {/* the small print */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7, duration: 0.6 }}
+          className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-seam pt-4 sm:grid-cols-4 lg:col-start-1 lg:row-start-2"
+        >
+          {[
+            ["Doors", "Whenever you like"],
+            ["Entry", "Free, no accounts"],
+            ["Tables", "Two to eight"],
+            ["Bring", "A phone each"],
+          ].map(([a, b]) => (
+            <div key={a}>
+              <div className="smallprint text-flare">{a}</div>
+              <div className="mt-1 font-aside text-[19px] leading-tight text-bone/85">{b}</div>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* phones: the ticket's two doors, until the ticket itself is on screen */}
+      <AnimatePresence>
+        {!ticketSeen && (
+          <motion.div
+            initial={{ y: 90 }}
+            animate={{ y: 0 }}
+            exit={{ y: 90 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-seam bg-void/90 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md lg:hidden"
+          >
+            <button
+              type="button"
+              onClick={() => toTicket(nameRef)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-flare py-3 font-poster text-[21px] font-extrabold uppercase tracking-[0.03em] text-void active:scale-[0.99]"
+            >
+              Start a party
+            </button>
+            <button
+              type="button"
+              onClick={() => toTicket(codeRef)}
+              className="rounded-2xl border border-seam px-5 font-poster text-[21px] font-extrabold uppercase tracking-[0.03em] text-bone active:scale-[0.99]"
+            >
+              Join
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <HoverCard k={hover} x={sx} y={sy} />
+      <Sheet k={sheet} onClose={() => setSheet(null)} onPick={choose} />
     </main>
   );
 }

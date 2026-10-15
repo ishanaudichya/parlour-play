@@ -6,13 +6,16 @@
 import type { TeenPattiMove, TeenPattiView } from "@/lib/games/teenpatti/types";
 import { ChipSvg } from "./Chips";
 
+/* buttons share the row equally (one row even with five on a phone) and grow
+   on larger screens; the row's height is reserved in every phase so the
+   table above never jumps */
 const btnBase =
-  "flex min-w-[86px] flex-col items-center gap-0.5 rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35";
+  "flex min-w-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-md border px-1.5 py-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-[11px] sm:tracking-[0.14em] lg:py-2.5 lg:text-[12.5px]";
 
 function AmountTag({ amount, allIn }: { amount: number; allIn: boolean }) {
   return (
-    <span className="flex items-center gap-1 text-[10px] normal-case tracking-normal opacity-90">
-      <ChipSvg denom={allIn ? 25 : 5} className="w-[11px]" />
+    <span className="flex items-center gap-1 text-[10px] normal-case tracking-normal opacity-90 lg:text-[11.5px]">
+      <ChipSvg denom={allIn ? 25 : 5} className="w-[11px] lg:w-[13px]" />
       {allIn ? `All-in ${amount}` : amount}
     </span>
   );
@@ -32,7 +35,6 @@ export function ActionTray({
   const me = v.players.find((p) => p.id === youId);
 
   if (spectating || !me) return null;
-  if (v.phase === "session_over") return null;
 
   const playing = v.phase === "playing";
   const myTurn = playing && v.turn === youId;
@@ -58,17 +60,18 @@ export function ActionTray({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-2 pb-3">
+    <div className="relative z-10 mx-auto w-full max-w-3xl shrink-0 px-2 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 sm:px-4">
       <div
-        className={`mb-1.5 text-center text-[11px] tracking-[0.2em] uppercase ${
+        className={`mb-1.5 truncate text-center text-[11px] uppercase tracking-[0.2em] lg:text-[12px] ${
           myTurn ? "text-[#e9cf8e]" : "text-[#8fa396]"
         }`}
       >
-        {status}
+        {v.phase === "session_over" ? "Session over" : status}
       </div>
 
+      <div className="flex h-[50px] items-stretch justify-center lg:h-[60px]">
       {inHand && playing && (
-        <div className="flex flex-wrap items-stretch justify-center gap-1.5 sm:gap-2">
+        <div className="grid w-full max-w-2xl auto-cols-fr grid-flow-col items-stretch gap-1.5 sm:gap-2">
           {!me.seen && (
             <button
               type="button"
@@ -148,6 +151,7 @@ export function ActionTray({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

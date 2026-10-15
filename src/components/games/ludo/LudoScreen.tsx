@@ -10,7 +10,8 @@
    Only the ability to act reads the live view, gated on the replay. */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { getMutedServerSnapshot, getMutedSnapshot, primeSound, setMuted, subscribeMuted } from "@/lib/client/synthCore";
 import { HOME_POS, TURN_MS, type LudoLogEntry, type LudoMove, type LudoView, type LudoViewPlayer } from "@/lib/games/ludo/types";
 import type { GameScreenProps } from "@/lib/party/types";
@@ -18,7 +19,7 @@ import { LudoBoard } from "./Board";
 import { DieTray } from "./Die";
 import { rozha } from "./font";
 import { GameOverCard, HomeDots, LudoRulesModal, TokenChip } from "./Overlays";
-import { BRASS, CARD_BG, CARD_BG_ACTIVE, CARD_BORDER, CREAM, PAINT, ROOM, SWIFT, TEXT_SOFT } from "./paint";
+import { BRASS, CARD_BG, CARD_BG_ACTIVE, CARD_BORDER, CREAM, PAINT, ROOM, SIZE, SWIFT, TEXT_SOFT } from "./paint";
 import { useLudoPlayback } from "./playback";
 import { ludoSfx, playLudoDiff } from "./sfx";
 
@@ -96,13 +97,16 @@ function DeadlineBar({ deadline, nowEst, color, label }: { deadline: number; now
 
 /* ---------------- roster card ---------------- */
 
-function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: boolean; you: boolean; wins: number; won: boolean }) {
+/** `compact`: in portrait the roster shares a row with the die, so cards
+    shed the yard count and say "You" instead of your name. */
+function PlayerCard({ p, active, you, wins, won, compact }: { p: LudoViewPlayer; active: boolean; you: boolean; wins: number; won: boolean; compact: boolean }) {
   const paint = PAINT[p.color];
   const home = p.tokens.filter((x) => x === HOME_POS).length;
   const racing = p.tokens.filter((x) => x >= 0 && x < HOME_POS).length;
+  const c = (cls: string) => (compact ? cls : "");
   return (
     <div
-      className="flex items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-[border-color,background,box-shadow] duration-300"
+      className={`flex min-w-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-[border-color,background,box-shadow] duration-300 ${c("portrait:gap-2 portrait:px-2")}`}
       style={{
         borderColor: active ? `${paint.light}aa` : CARD_BORDER,
         background: active ? CARD_BG_ACTIVE : CARD_BG,
@@ -112,7 +116,7 @@ function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: 
       }}
     >
       <div className="relative shrink-0">
-        <TokenChip color={p.color} size={24} dim={p.left} />
+        <TokenChip color={p.color} size={22} dim={p.left} />
         {active && (
           <motion.span
             className="absolute -inset-1 rounded-full"
@@ -125,26 +129,95 @@ function PlayerCard({ p, active, you, wins, won }: { p: LudoViewPlayer; active: 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className={`truncate text-[12.5px] font-semibold ${p.left ? "line-through" : ""}`} style={{ color: won ? paint.light : CREAM }}>
-            {p.name}
+            {you && compact ? (
+              <>
+                <span className="landscape:hidden">You</span>
+                <span className="portrait:hidden">{p.name}</span>
+              </>
+            ) : (
+              p.name
+            )}
           </span>
           {you && (
-            <span className="rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em]" style={{ background: "rgba(243,233,210,0.16)", color: CREAM }}>
+            <span className={`shrink-0 rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em] ${c("portrait:hidden")}`} style={{ background: "rgba(243,233,210,0.16)", color: CREAM }}>
               you
             </span>
           )}
           {wins > 0 && (
-            <span className="ml-auto text-[10px] font-bold tabular-nums" style={{ color: BRASS }} title="Ludo wins">
+            <span className="ml-auto shrink-0 text-[10px] font-bold tabular-nums" style={{ color: BRASS }} title="Ludo wins">
               ★{wins}
             </span>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-[9.5px] uppercase tracking-[0.14em]" style={{ color: TEXT_SOFT }}>
+        <div className="mt-1 flex items-center gap-2 whitespace-nowrap text-[9.5px] uppercase tracking-[0.14em] max-[379px]:gap-1.5 max-[379px]:tracking-[0.06em]" style={{ color: TEXT_SOFT }}>
           <HomeDots color={p.color} home={home} size={7} />
-          {p.left ? <span>left</span> : <span className="tabular-nums">{racing} out · {p.inYard} in yard</span>}
+          {p.left ? <span>left</span> : <span className={`tabular-nums ${c("portrait:hidden")}`}>{racing} out · {p.inYard} in yard</span>}
         </div>
       </div>
     </div>
   );
+}
+
+/* ---------------- fitting the board to the room ---------------- */
+
+/** the log ticker under the board */
+const TICKER_H = 28;
+/** 992 board units; past ~1.05 px a unit the enamel stops looking like a board and starts looking like a floor */
+const MAX_BOARD = Math.round(SIZE * 1.05);
+
+/**
+ * The table is a row (board, then the side of the table) in landscape and a
+ * column (board above the die and the players) in portrait — CSS decides;
+ * this reads which, subtracts the panel and the ticker, and squares the
+ * board into what's left. It also reports where the board's centre is, so
+ * the four pigment panels of the room can meet right under it.
+ */
+function useTableFit() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<{ size: number; side: boolean; cx: number | null; cy: number | null }>({ size: 0, side: false, cx: null, cy: null });
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    const panel = panelRef.current;
+    if (!row || !panel) return;
+    const measure = () => {
+      const cs = getComputedStyle(row);
+      const side = cs.flexDirection === "row";
+      const W = row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const H = row.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const gap = parseFloat(side ? cs.columnGap : cs.rowGap) || 0;
+      const availW = side ? W - panel.offsetWidth - gap : W;
+      const availH = (side ? H : H - panel.offsetHeight - gap) - TICKER_H;
+      const size = Math.max(0, Math.floor(Math.min(availW, availH, MAX_BOARD)));
+      setFit((f) => (f.size === size && f.side === side ? f : { ...f, size, side }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, []);
+  // once the board has its size, find its centre for the room's seams
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const board = boardRef.current;
+    if (!root || !board || !fit.size) return;
+    const place = () => {
+      const r = root.getBoundingClientRect();
+      const b = board.getBoundingClientRect();
+      const cx = Math.round(b.left + b.width / 2 - r.left);
+      const cy = Math.round(b.top + b.height / 2 - r.top);
+      setFit((f) => (f.cx === cx && f.cy === cy ? f : { ...f, cx, cy }));
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(root);
+    if (panelRef.current) ro.observe(panelRef.current);
+    return () => ro.disconnect();
+  }, [fit.size, fit.side]);
+  return { rootRef, rowRef, panelRef, boardRef, fit };
 }
 
 /* ==================== screen ==================== */
@@ -248,35 +321,33 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
     return turnPlayer ? `${turnPlayer.name}'s roll` : "";
   }, [pb.rolling, d.phase, d.die, winner, canRoll, shownMyTurn, turnPlayer]);
 
-  const dieTray = <DieTray value={pb.dieFace} rolling={pb.rolling} canRoll={canRoll} onRoll={roll} accent={accent} caption={dieCaption} />;
-
-  const roster = (
-    <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-1 lg:gap-2">
-      {d.players.map((p) => (
-        <PlayerCard key={p.id} p={p} active={d.phase !== "over" && d.turn === p.id} you={p.id === youId} wins={tallies[p.id] ?? 0} won={d.winner === p.id} />
-      ))}
-    </div>
-  );
+  const { rootRef, rowRef, panelRef, boardRef, fit } = useTableFit();
+  // the room's four panels meet under the board's centre
+  const X = fit.cx !== null ? `${fit.cx}px` : "50%";
+  const Y = fit.cy !== null ? `${fit.cy}px` : "50%";
+  const n = d.players.length;
+  const toolBtn = "flex h-8 items-center justify-center rounded-lg border px-2.5 transition hover:brightness-125";
 
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      ref={rootRef}
+      className="relative flex h-dvh flex-col overflow-hidden"
       style={{
         background: [
           // lamp over the table
           "radial-gradient(70% 42% at 50% 0%, rgba(255,236,200,0.16) 0%, transparent 60%)",
           // the board's own shadow pooling under it
-          "radial-gradient(52% 52% at 50% 50%, rgba(18,8,6,0.55) 0%, rgba(18,8,6,0.22) 48%, transparent 76%)",
+          `radial-gradient(52% 52% at ${X} ${Y}, rgba(18,8,6,0.55) 0%, rgba(18,8,6,0.22) 48%, transparent 76%)`,
           // a soft sheen on each panel
           "radial-gradient(38% 38% at 22% 24%, rgba(255,255,255,0.07) 0%, transparent 70%)",
           "radial-gradient(38% 38% at 78% 24%, rgba(255,255,255,0.07) 0%, transparent 70%)",
           "radial-gradient(38% 38% at 22% 78%, rgba(255,255,255,0.06) 0%, transparent 70%)",
           "radial-gradient(38% 38% at 78% 78%, rgba(255,255,255,0.06) 0%, transparent 70%)",
           // the ivory seams between the panels
-          `linear-gradient(90deg, transparent calc(50% - 1px), ${IVORY_LINE} calc(50% - 1px), ${IVORY_LINE} calc(50% + 1px), transparent calc(50% + 1px))`,
-          `linear-gradient(180deg, transparent calc(50% - 1px), ${IVORY_LINE} calc(50% - 1px), ${IVORY_LINE} calc(50% + 1px), transparent calc(50% + 1px))`,
+          `linear-gradient(90deg, transparent calc(${X} - 1px), ${IVORY_LINE} calc(${X} - 1px), ${IVORY_LINE} calc(${X} + 1px), transparent calc(${X} + 1px))`,
+          `linear-gradient(180deg, transparent calc(${Y} - 1px), ${IVORY_LINE} calc(${Y} - 1px), ${IVORY_LINE} calc(${Y} + 1px), transparent calc(${Y} + 1px))`,
           // the four panels: marigold top-right, indigo bottom-right, vermilion bottom-left, emerald top-left
-          `conic-gradient(from 0deg at 50% 50%, ${ROOM.yellow} 0deg 90deg, ${ROOM.blue} 90deg 180deg, ${ROOM.red} 180deg 270deg, ${ROOM.green} 270deg 360deg)`,
+          `conic-gradient(from 0deg at ${X} ${Y}, ${ROOM.yellow} 0deg 90deg, ${ROOM.blue} 90deg 180deg, ${ROOM.red} 180deg 270deg, ${ROOM.green} 270deg 360deg)`,
         ].join(", "),
         fontFamily: "var(--font-sans)",
       }}
@@ -286,18 +357,18 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
 @keyframes ludo-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.45 } }
 `}</style>
 
-      {/* header */}
-      <header className="relative z-10 flex items-center justify-between gap-3 px-3 pb-1 pt-3 sm:px-5">
+      {/* header — rides above the game-over veil so the menu is always in reach */}
+      <header className="relative z-[55] flex shrink-0 items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-5">
         <div className="min-w-0">
           <h1 className={`${rozha.className} truncate text-[22px] leading-none sm:text-[26px]`} style={{ color: CREAM, textShadow: "0 2px 0 rgba(0,0,0,0.45), 0 0 24px rgba(0,0,0,0.35)" }}>
             Ludo
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em]" style={{ color: TEXT_SOFT }}>
+          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap text-[9px] uppercase tracking-[0.22em] max-[379px]:tracking-[0.16em]" style={{ color: TEXT_SOFT }}>
             <span className="tabular-nums">{d.rolls} rolls</span>
             <span aria-hidden style={{ opacity: 0.5 }}>·</span>
             <span className="tabular-nums">{d.moves} moves</span>
-            <span aria-hidden style={{ opacity: 0.5 }}>·</span>
-            <span>{d.players.length} colours</span>
+            <span aria-hidden className="max-sm:hidden" style={{ opacity: 0.5 }}>·</span>
+            <span className="max-sm:hidden">{d.players.length} colours</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -305,7 +376,7 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
             type="button"
             onClick={() => setMuted(!muted)}
             aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-            className={`rounded-lg border px-2.5 py-1.5 text-[13px] transition ${muted ? "line-through" : ""}`}
+            className={`${toolBtn} w-8 px-0 text-[13px] ${muted ? "line-through" : ""}`}
             style={{ borderColor: CARD_BORDER, background: CARD_BG, color: muted ? "rgba(243,233,210,0.4)" : CREAM }}
           >
             ♪
@@ -313,48 +384,23 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
           <button
             type="button"
             onClick={() => setRulesOpen(true)}
-            className="rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition"
+            className={`${toolBtn} text-[10px] font-semibold uppercase tracking-[0.16em]`}
             style={{ borderColor: CARD_BORDER, background: CARD_BG, color: CREAM }}
           >
             Rules
           </button>
+          <PartyMenu style={{ borderRadius: 8, borderColor: CARD_BORDER, background: CARD_BG, color: CREAM }} />
         </div>
       </header>
 
-      {spectating && (
-        <div className="relative z-10 mx-auto mt-1 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em]" style={{ borderColor: `${BRASS}88`, background: CARD_BG_ACTIVE, color: "#eed9a4" }}>
-          Spectating — pull up a chair
-        </div>
-      )}
-
-      {/* banner + clock */}
-      <div className="relative z-10 mt-2 space-y-2 px-3 sm:px-5">
-        <div className="flex min-h-[32px] items-center justify-center gap-2.5">
-          {turnPlayer && d.phase !== "over" && <TokenChip color={turnPlayer.color} size={16} />}
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={banner.text}
-              initial={{ y: 8, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -8, opacity: 0 }}
-              transition={{ duration: 0.28, ease: SWIFT }}
-              className={`${rozha.className} text-[17px] leading-none sm:text-[19px]`}
-              style={{ color: banner.color, textShadow: "0 1px 0 rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.35)" }}
-            >
-              {banner.text}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-        {d.phase !== "over" && v.deadline !== null && (
-          <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={accent} label={turnPlayer ? `${turnPlayer.name} — ${d.phase === "roll" ? "to roll" : "to move"}` : "clock"} />
-        )}
-      </div>
-
-      {/* the table */}
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-3 pb-6 pt-4 sm:px-5">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(250px,300px)] lg:items-start lg:gap-6">
-          <div className="min-w-0">
-            <div className="mx-auto w-full" style={{ maxWidth: "min(100%, 720px, 80vh)" }}>
+      {/* the table: board beside the side of the table in landscape, above it in portrait */}
+      <main
+        ref={rowRef}
+        className="relative z-10 flex min-h-0 flex-1 flex-col items-center gap-3 px-3 pb-3 sm:px-5 sm:landscape:flex-row sm:landscape:justify-center sm:landscape:gap-6 sm:landscape:pb-4"
+      >
+        <div className="my-auto flex shrink-0 flex-col items-center" style={{ width: fit.size || undefined }}>
+          <div ref={boardRef} style={{ width: fit.size, height: fit.size }}>
+            {fit.size > 0 && (
               <LudoBoard
                 players={d.players}
                 pb={pb}
@@ -368,47 +414,93 @@ export function LudoScreen(props: GameScreenProps<LudoView>) {
                 onPickToken={pickToken}
                 winnerSeat={d.phase === "over" ? (winner?.seat ?? null) : null}
               />
-            </div>
-
-            {/* log ticker */}
-            <div className="mt-3 flex min-h-[18px] items-center justify-center px-2 text-center">
-              <AnimatePresence mode="wait" initial={false}>
-                {lastLog && (
-                  <motion.span
-                    key={lastLog.i}
-                    initial={{ y: 6, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -6, opacity: 0 }}
-                    transition={{ duration: 0.26, ease: SWIFT }}
-                    className="text-[11px] italic"
-                    style={{ color: TEXT_SOFT, textShadow: "0 1px 0 rgba(0,0,0,0.35)" }}
-                  >
-                    {logLine(lastLog)}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
-            {(canRoll || canPick) && (
-              <p className="mt-1 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block" style={{ color: "rgba(243,233,210,0.5)" }}>
-                {canRoll ? "tap the die · space also rolls" : "tap a glowing token · keys 1–4 also work"}
-              </p>
             )}
           </div>
 
-          {/* the side of the table: die tray + the players */}
-          <div className="flex flex-col items-stretch gap-4">
+          {/* log ticker */}
+          <div className="flex w-full items-end justify-center overflow-hidden px-2 text-center" style={{ height: TICKER_H }}>
+            <AnimatePresence mode="wait" initial={false}>
+              {lastLog && (
+                <motion.span
+                  key={lastLog.i}
+                  initial={{ y: 6, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -6, opacity: 0 }}
+                  transition={{ duration: 0.26, ease: SWIFT }}
+                  className="truncate text-[11px] italic"
+                  style={{ color: TEXT_SOFT, textShadow: "0 1px 0 rgba(0,0,0,0.35)" }}
+                >
+                  {logLine(lastLog)}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* the side of the table: status, die tray, the players */}
+        <div
+          ref={panelRef}
+          className="flex w-full max-w-[560px] shrink-0 flex-col gap-3 sm:landscape:min-h-0 sm:landscape:w-[clamp(232px,22vw,300px)] sm:landscape:gap-4"
+          style={fit.side && fit.size ? { height: fit.size + TICKER_H } : undefined}
+        >
+          {spectating && (
             <div
-              className="rounded-2xl border px-4 py-4"
+              className="mx-auto shrink-0 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em] sm:landscape:mx-0 sm:landscape:self-start"
+              style={{ borderColor: `${BRASS}88`, background: CARD_BG_ACTIVE, color: "#eed9a4" }}
+            >
+              Spectating<span className="sm:landscape:hidden"> — pull up a chair</span>
+            </div>
+          )}
+
+          {/* banner + clock */}
+          <div className="shrink-0 space-y-2">
+            <div className="flex min-h-[28px] items-center justify-center gap-2.5 text-center sm:landscape:justify-start sm:landscape:text-left">
+              {turnPlayer && d.phase !== "over" && <TokenChip color={turnPlayer.color} size={16} />}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={banner.text}
+                  initial={{ y: 8, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -8, opacity: 0 }}
+                  transition={{ duration: 0.28, ease: SWIFT }}
+                  className={`${rozha.className} text-[17px] leading-tight sm:text-[19px]`}
+                  style={{ color: banner.color, textShadow: "0 1px 0 rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.35)" }}
+                >
+                  {banner.text}
+                </motion.span>
+              </AnimatePresence>
+            </div>
+            {d.phase !== "over" && v.deadline !== null && (
+              <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={accent} label={turnPlayer ? `${turnPlayer.name} — ${d.phase === "roll" ? "to roll" : "to move"}` : "clock"} />
+            )}
+          </div>
+
+          {/* die tray + roster: side by side in portrait, stacked in landscape */}
+          <div className="flex min-h-0 items-stretch gap-3 sm:landscape:flex-col sm:landscape:gap-4">
+            <div
+              className="flex shrink-0 items-center justify-center rounded-2xl border px-3 py-3 sm:landscape:px-4 sm:landscape:py-4"
               style={{
                 borderColor: "rgba(201,164,92,0.35)",
                 background: "linear-gradient(180deg, rgba(58,32,24,0.78) 0%, rgba(29,15,10,0.82) 100%)",
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 40px rgba(0,0,0,0.4)",
               }}
             >
-              {dieTray}
+              <DieTray value={pb.dieFace} rolling={pb.rolling} canRoll={canRoll} onRoll={roll} accent={accent} caption={dieCaption} />
             </div>
-            {roster}
+            <div
+              className={`grid min-w-0 flex-1 content-center gap-1.5 ${n <= 2 ? "grid-cols-1" : "grid-cols-2"} sm:landscape:-mx-1 sm:landscape:flex sm:landscape:min-h-0 sm:landscape:flex-col sm:landscape:content-start sm:landscape:gap-2 sm:landscape:overflow-y-auto sm:landscape:px-1 sm:landscape:pb-1`}
+            >
+              {d.players.map((p) => (
+                <PlayerCard key={p.id} p={p} active={d.phase !== "over" && d.turn === p.id} you={p.id === youId} wins={tallies[p.id] ?? 0} won={d.winner === p.id} compact={n > 2} />
+              ))}
+            </div>
           </div>
+
+          {(canRoll || canPick) && (
+            <p className="mt-auto hidden shrink-0 text-[9px] uppercase leading-relaxed tracking-[0.2em] sm:landscape:block" style={{ color: "rgba(243,233,210,0.55)" }}>
+              {canRoll ? "tap the die · space also rolls" : "tap a glowing token · keys 1–4 also work"}
+            </p>
+          )}
         </div>
       </main>
 

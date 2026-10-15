@@ -8,6 +8,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import type {
   SecretHitlerView,
   SHElection,
@@ -30,6 +31,8 @@ import {
 } from "./Boards";
 import { PartyCard, RolePlate } from "./Dossier";
 import { oswald, typewriter } from "./font";
+import { useBox } from "@/lib/client/useBox";
+import { fitReveal } from "../reveal";
 
 const nameOf = (players: SHViewPlayer[], id: string | null) =>
   players.find((p) => p.id === id)?.name ?? "someone";
@@ -358,26 +361,39 @@ export function GameOverOverlay({
   const anyTallies = Object.values(tallies).some((w) => w > 0);
   const color = banner.tone === "verm" ? VERM_DARK : SLATE_DEEP;
 
+  // the whole record fits the screen: the dossier zone is measured, the rest
+  // of the sheet is "chrome", and the dossiers take what the area has left
+  const [areaRef, area] = useBox<HTMLDivElement>();
+  const [panelRef, panel] = useBox<HTMLDivElement>("border");
+  const [zoneRef, zone] = useBox<HTMLDivElement>();
+  const padY = area.w >= 600 ? 20 : 12;
+  const fit = fitReveal(zone.w, area.h - padY * 2 - (panel.h - zone.h) - 4, [liberals.length, fascists.length], {
+    maxW: 168,
+    minW: 46,
+  });
+  const cardW = fit.w;
+
   const wall = (label: string, labelColor: string, list: typeof entries, offset: number) => (
-    <div>
+    <div className="min-w-0 flex-1">
       <div
-        className={`${oswald.className} mb-2 text-center text-[10px] font-semibold uppercase tracking-[0.3em]`}
+        className={`${oswald.className} mb-2 text-center text-[10px] font-semibold uppercase tracking-[0.3em] sm:text-[11px]`}
         style={{ color: labelColor }}
       >
         {label}
         {view.winner === (labelColor === SLATE_DEEP ? "liberal" : "fascist") ? " · victorious" : ""}
       </div>
-      <div className="flex flex-wrap items-start justify-center gap-3">
+      <div className="flex flex-wrap items-start justify-center" style={{ gap: fit.gap }}>
         {list.map((e, i) => (
           <motion.div
             key={e.player.id}
-            className="flex w-[86px] flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1"
+            style={{ width: cardW + 4 }}
             initial={reduce ? false : { rotateY: 120, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
             transition={{ delay: reduce ? 0 : 0.3 + (offset + i) * 0.12, duration: 0.45, ease: EASE }}
           >
             <div className="relative">
-              <RolePlate role={e.entry?.role ?? "liberal"} w={82} />
+              <RolePlate role={e.entry?.role ?? "liberal"} w={cardW} />
               {!e.player.alive ? (
                 <span
                   className={`${oswald.className} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-14deg] border-2 px-1 text-[9px] font-bold tracking-[0.14em]`}
@@ -387,7 +403,10 @@ export function GameOverOverlay({
                 </span>
               ) : null}
             </div>
-            <span className={`${typewriter.className} w-full truncate text-center text-[10px]`} style={{ color: INK_SOFT }}>
+            <span
+              className={`${typewriter.className} w-full truncate text-center ${cardW >= 100 ? "text-[12px]" : "text-[10px]"}`}
+              style={{ color: INK_SOFT }}
+            >
               {e.player.name}
               {e.player.id === youId ? " (you)" : ""}
               {e.player.left ? " · left" : ""}
@@ -400,77 +419,91 @@ export function GameOverOverlay({
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 overflow-y-auto bg-[#0d0a07]/85 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-40 flex flex-col bg-[#0d0a07]/85 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <motion.div
-        className="relative mx-auto my-6 w-full max-w-2xl border-2 p-5 text-center sm:p-8"
-        style={{ background: PAPER, borderColor: INK, boxShadow: "8px 8px 0 rgba(13,10,7,0.8)", color: INK }}
-        initial={{ y: 24, scale: 0.98, opacity: 0 }}
-        animate={{ y: 0, scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4, ease: EASE }}
-      >
-        <div className="pointer-events-none absolute inset-0 opacity-[0.05]" style={{ backgroundImage: HALFTONE }} />
-        <div className="relative">
-          <div className={`${typewriter.className} text-[10px] tracking-[0.3em]`} style={{ color: INK_FADE }}>
-            {youWon ? "YOUR CAUSE CARRIES THE DAY" : "THE RECORD IS SEALED"}
-          </div>
-          <h2
-            className={`${oswald.className} mt-2 text-3xl font-bold uppercase leading-none tracking-[0.1em] sm:text-4xl`}
-            style={{ color }}
-          >
-            {banner.title}
-          </h2>
-          {banner.sub ? (
-            <p className={`${typewriter.className} mt-2 text-[11px]`} style={{ color: INK_SOFT }}>
-              {banner.sub}
-            </p>
-          ) : null}
-
-          <div className="my-5 h-0.5" style={{ background: `${INK}33` }} />
-          <div className="space-y-5">
-            {wall("The Liberals", SLATE_DEEP, liberals, 0)}
-            {wall("The Fascists", VERM_DARK, fascists, liberals.length)}
-          </div>
-
-          {anyTallies ? (
-            <div className="mt-6 border-t-2 pt-4 text-left" style={{ borderColor: `${INK}33` }}>
-              <div className={`${oswald.className} text-[10px] font-semibold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
-                Secret Hitler victories
-              </div>
-              <div className="mt-2 space-y-1.5">
-                {view.players
-                  .map((p) => ({ p, wins: tallies[p.id] ?? 0 }))
-                  .sort((a, b) => b.wins - a.wins)
-                  .map(({ p, wins }) => (
-                    <div key={p.id} className={`${typewriter.className} flex justify-between text-[11px] tabular-nums`} style={{ color: INK_SOFT }}>
-                      <span>{p.name}</span>
-                      <span style={{ color: VERM_DARK }}>★ {wins}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="my-6 h-0.5" style={{ background: `${INK}33` }} />
-          {isHost ? (
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-              <InkButton tone={banner.tone === "verm" ? "verm" : "slate"} onClick={playAgain} className="sm:min-w-44">
-                Convene again
-              </InkButton>
-              <InkButton onClick={exitToLobby} className="sm:min-w-44">
-                Back to lobby
-              </InkButton>
-            </div>
-          ) : (
-            <div className={`${typewriter.className} border-2 border-dashed px-4 py-3 text-[11px]`} style={{ borderColor: `${INK}55`, color: INK_SOFT }}>
-              Waiting for the host…
-            </div>
-          )}
+      {/* the overlay covers the toolbar, so it carries the Parlour menu itself */}
+      <div className="shrink-0 border-b-2" style={{ background: PAPER, borderColor: INK, color: INK }}>
+        <div className="mx-auto flex w-full max-w-[1680px] items-center justify-between px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] sm:px-6">
+          <span className={`${oswald.className} text-[13px] font-bold uppercase tracking-[0.18em] sm:text-base sm:tracking-[0.3em]`}>
+            Secret<span style={{ color: VERM }}> Hitler</span>
+          </span>
+          <PartyMenu style={{ borderRadius: 0, borderWidth: 2, borderColor: INK, color: INK, opacity: 1 }} />
         </div>
-      </motion.div>
+      </div>
+      <div ref={areaRef} className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-4">
+        <div className="flex min-h-full items-center justify-center" style={{ paddingBlock: padY }}>
+          <motion.div
+            ref={panelRef}
+            className="relative w-full max-w-[1120px] border-2 p-4 text-center sm:p-8"
+            style={{ background: PAPER, borderColor: INK, boxShadow: "8px 8px 0 rgba(13,10,7,0.8)", color: INK }}
+            initial={{ y: 24, scale: 0.98, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          >
+            <div className="pointer-events-none absolute inset-0 opacity-[0.05]" style={{ backgroundImage: HALFTONE }} />
+            <div className="relative">
+              <div className={`${typewriter.className} text-[10px] tracking-[0.3em]`} style={{ color: INK_FADE }}>
+                {youWon ? "YOUR CAUSE CARRIES THE DAY" : "THE RECORD IS SEALED"}
+              </div>
+              <h2
+                className={`${oswald.className} mt-2 text-3xl font-bold uppercase leading-none tracking-[0.1em] sm:text-4xl xl:text-5xl`}
+                style={{ color }}
+              >
+                {banner.title}
+              </h2>
+              {banner.sub ? (
+                <p className={`${typewriter.className} mt-2 text-[11px] sm:text-[12.5px]`} style={{ color: INK_SOFT }}>
+                  {banner.sub}
+                </p>
+              ) : null}
+
+              <div className="my-4 h-0.5 sm:my-5" style={{ background: `${INK}33` }} />
+              <div ref={zoneRef} className={fit.side ? "flex items-start" : "space-y-4"} style={fit.side ? { gap: fit.split } : undefined}>
+                {wall("The Liberals", SLATE_DEEP, liberals, 0)}
+                {fit.side ? <div className="w-0.5 self-stretch" style={{ background: `${INK}22` }} /> : null}
+                {wall("The Fascists", VERM_DARK, fascists, liberals.length)}
+              </div>
+
+              {anyTallies ? (
+                <div className="mt-5 border-t-2 pt-3 sm:mt-6" style={{ borderColor: `${INK}33` }}>
+                  <div className={`${oswald.className} text-[10px] font-semibold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
+                    Secret Hitler victories
+                  </div>
+                  <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                    {view.players
+                      .map((p) => ({ p, wins: tallies[p.id] ?? 0 }))
+                      .sort((a, b) => b.wins - a.wins)
+                      .map(({ p, wins }) => (
+                        <span key={p.id} className={`${typewriter.className} text-[11px] tabular-nums`} style={{ color: INK_SOFT }}>
+                          {p.name} <span style={{ color: VERM_DARK }}>★ {wins}</span>
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="my-4 h-0.5 sm:my-5" style={{ background: `${INK}33` }} />
+              {isHost ? (
+                <div className="flex flex-row justify-center gap-2.5">
+                  <InkButton tone={banner.tone === "verm" ? "verm" : "slate"} onClick={playAgain} className="flex-1 sm:min-w-44 sm:flex-none">
+                    Convene again
+                  </InkButton>
+                  <InkButton onClick={exitToLobby} className="flex-1 sm:min-w-44 sm:flex-none">
+                    Back to lobby
+                  </InkButton>
+                </div>
+              ) : (
+                <div className={`${typewriter.className} border-2 border-dashed px-4 py-3 text-[11px]`} style={{ borderColor: `${INK}55`, color: INK_SOFT }}>
+                  Waiting for the host…
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      </div>
     </motion.div>
   );
 }

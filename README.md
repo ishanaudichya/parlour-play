@@ -29,7 +29,12 @@ server-authoritative engines for every game (nobody can cheat by reading the net
 
 - **Party layer** — a party is the durable thing: members join once, the host picks games
   repeatedly, win tallies accumulate per game. Friends who arrive mid-game spectate and get
-  dealt into the next one.
+  dealt into the next one. In the lobby, guests vote for what they'd like to play and the
+  host's pick (or a spin of the shelf) shows on every screen — but the host still deals.
+- **Games own the screen** — there's no site header during play. Every game screen keeps
+  the full viewport and carries the small Parlour menu (`src/components/party/PartyMenu.tsx`)
+  in its own toolbar: invite, sound, end the game (host), leave. If a screen ever renders
+  without one, the room floats its own so nobody is stuck in a game.
 - **Real-time, not polling** — clients hold a fetch-based **SSE stream**
   (`/api/party/[code]/stream`, Fluid Compute, 300 s max duration with transparent
   reconnects). Writers `PUBLISH` to **Upstash Redis pub/sub**; streams relay the signal and
@@ -88,6 +93,7 @@ npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry a
 npm run simulate:dots       # Dots and Boxes (1120 games on every page size 2×2–12×12, 2–8 players, page re-derived every step)
 npm run simulate:staccs     # STACCS      (2100 games, 2–8 players, every placement re-derived + rule cases)
 npm run simulate:tanks      # Pocket Tanks (30 weapons × 220 random shots with independent replay check, 360 games, rule cases)
+npm run simulate:party      # Party lobby (vote + spotlight rule cases, 400 fuzzed lobbies)
 npm run simulate:all
 ```
 

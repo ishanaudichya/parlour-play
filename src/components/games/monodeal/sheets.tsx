@@ -820,15 +820,21 @@ export function GameOverOverlay({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4 pb-4 pt-16"
     >
       <div className="absolute inset-0" style={{ background: "rgba(3,6,4,0.72)", backdropFilter: "blur(3px)" }} />
       <motion.div
         initial={{ y: 26, scale: 0.97, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-md rounded-lg p-5"
-        style={{ background: PANEL_SOLID, backgroundImage: GUILLOCHE_DARK, border: `2px solid ${GREEN_HI}`, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+        className="relative max-h-full w-full max-w-md overflow-y-auto rounded-lg p-5"
+        style={{
+          background: PANEL_SOLID,
+          backgroundImage: GUILLOCHE_DARK,
+          border: `2px solid ${GREEN_HI}`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          scrollbarWidth: "thin",
+        }}
       >
         <div className="flex flex-col items-center gap-1 text-center">
           <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: COPPER_HI }}>

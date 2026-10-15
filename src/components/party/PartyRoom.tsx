@@ -1,93 +1,73 @@
 "use client";
 
+/* One party, start to finish: the invitation at the door, the lobby, and the
+   games. During a game the game owns the whole screen — the Parlour shrinks
+   to the small menu each game keeps in its own toolbar. */
+
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GAME_UI } from "@/components/games/registry";
-import { FeltSurface, NeonMark, PaperCard, SButton, SPanel } from "@/components/party/shell";
-import { Icons, Toast } from "@/components/ui";
 import { clearSession, useSavedName } from "@/lib/client/session";
-import {
-  getMutedServerSnapshot,
-  getMutedSnapshot,
-  primeSound,
-  setMuted,
-  subscribeMuted,
-} from "@/lib/client/synthCore";
+import { primeSound, uiClick } from "@/lib/client/synthCore";
 import { sfx } from "@/lib/client/sound";
-import { useParty, type Connection } from "@/lib/client/useParty";
+import { useParty } from "@/lib/client/useParty";
 import { GAME_META } from "@/lib/games/registry";
+import type { GameType } from "@/lib/games/types";
 import { PARTY_MAX, type GameScreenProps } from "@/lib/party/types";
+import { LINEUP } from "./catalog";
 import { PartyLobby } from "./PartyLobby";
+import { PartyChromeProvider, PartyMenu } from "./PartyMenu";
+import { Avatar, Bleed, EASE, Marquee, Spark, stageName, Ticket, TicketHead, TicketTear, TopStrip } from "./stage";
 
-function SoundToggle() {
-  const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, getMutedServerSnapshot);
+/** The bill, faint and huge, sliding past behind the door's ticket. */
+function Backdrop() {
+  const rows = LINEUP.filter((r): r is GameType[] => typeof r !== "string");
   return (
-    <button
-      onClick={() => {
-        primeSound();
-        setMuted(!muted);
-      }}
-      className="text-linen-500 transition hover:text-coral-300"
-      aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-      title={muted ? "Unmute" : "Mute"}
-    >
-      {muted ? <Icons.volumeOff size={17} /> : <Icons.volumeOn size={17} />}
-    </button>
-  );
-}
-
-function ConnectionDot({ c }: { c: Connection }) {
-  const style =
-    c === "live"
-      ? { background: "#7dc98f", boxShadow: "0 0 8px rgba(125,201,143,0.8)" }
-      : c === "degraded"
-        ? { background: "#ffb199" }
-        : { background: "#8f94a8" };
-  return (
-    <span
-      className={`inline-block h-2 w-2 rounded-full ${c !== "live" ? "animate-pulse" : ""}`}
-      style={style}
-      title={c === "live" ? "Live connection" : c === "degraded" ? "Reconnecting — updates may lag" : "Connecting"}
-    />
-  );
-}
-
-function ConfirmSheet({
-  text,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-}: {
-  text: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-night-950/80 p-4 backdrop-blur-sm">
-      <SPanel className="w-full max-w-xs p-6 text-center">
-        <p className="mb-4 text-[14px] text-linen-300">{text}</p>
-        <div className="flex gap-2">
-          <SButton className="flex-1" onClick={onCancel}>
-            Stay
-          </SButton>
-          <SButton variant="danger" className="flex-1" onClick={onConfirm}>
-            {confirmLabel}
-          </SButton>
-        </div>
-      </SPanel>
+    <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col justify-center gap-[2vh] overflow-hidden opacity-[0.075]">
+      {rows.map((r, i) => (
+        <Marquee key={i} seconds={70 + i * 12} reverse={i % 2 === 1}>
+          {r.map((k) => (
+            <span
+              key={k}
+              className="flex items-center whitespace-nowrap font-poster text-[clamp(72px,17vh,190px)] font-extrabold uppercase leading-[0.9]"
+              style={{ fontVariationSettings: '"opsz" 72' }}
+            >
+              {stageName(k)}
+              <Spark className="mx-[0.25em] h-[0.3em] w-[0.3em] text-flare" />
+            </span>
+          ))}
+        </Marquee>
+      ))}
     </div>
+  );
+}
+
+function DoorFrame({ code, children }: { code: string; children: React.ReactNode }) {
+  return (
+    <main className="relative flex min-h-dvh flex-col overflow-hidden">
+      <Backdrop />
+      <Bleed className="-bottom-60 -right-48" size={680} />
+      <TopStrip>
+        <span className="smallprint text-dust" translate="no">
+          Table {code}
+        </span>
+      </TopStrip>
+      <div className="relative z-10 flex flex-1 items-center justify-center px-4 pb-10 pt-4">{children}</div>
+    </main>
   );
 }
 
 function JoinGate({
   code,
   names,
+  game,
   full,
   onJoin,
 }: {
   code: string;
   names: string[];
+  game: GameType | null;
   full: boolean;
   onJoin: (name: string) => Promise<string | null>;
 }) {
@@ -95,6 +75,7 @@ function JoinGate({
   const [name, setName] = useSavedName();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const host = names[0];
 
   async function join() {
     if (busy || !name.trim() || full) return;
@@ -108,85 +89,225 @@ function JoinGate({
   }
 
   return (
-    <main className="flex flex-1 flex-col">
-      <FeltSurface>
-        <div className="flex flex-1 items-center justify-center px-4 py-10">
-          <PaperCard rotate={-1.4} className="w-full max-w-[400px] px-7 pb-7 pt-8">
-            {/* wax seal */}
+    <DoorFrame code={code}>
+      <motion.div
+        initial={{ opacity: 0, y: 30, rotate: -2 }}
+        animate={{ opacity: 1, y: 0, rotate: 0 }}
+        transition={{ duration: 0.8, ease: EASE }}
+        className="w-full max-w-[440px]"
+      >
+        <div className="bob">
+          <Ticket>
+            <TicketHead
+              left={
+                <>
+                  <Spark size={9} /> You&apos;re on the list
+                </>
+              }
+              right="Admit one"
+            />
+            <div className="px-6 pt-5">
+              <p className="font-aside text-[24px] italic leading-none text-void/70">{host ? `${host}'s table` : "Table"}</p>
+              <div
+                className="mt-1 font-poster text-[104px] font-extrabold uppercase leading-[0.82] tracking-[0.04em] text-void"
+                style={{ fontVariationSettings: '"opsz" 72', textShadow: "0.04em 0.03em 0 var(--color-flare)" }}
+                translate="no"
+              >
+                {code}
+              </div>
+              {names.length > 0 && (
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {names.slice(0, 6).map((n, i) => (
+                      <Avatar key={n} name={n} seat={i} size={28} className="ring-2 ring-bone" />
+                    ))}
+                  </div>
+                  <span className="min-w-0 truncate font-ui text-[13px] text-void/65">
+                    {names.length === 1 ? `${names[0]} is waiting` : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]} are in`}
+                  </span>
+                </div>
+              )}
+              {game && (
+                <p className="smallprint mt-3 flex items-center gap-2 text-void/60">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-flare" />
+                  Now playing {stageName(game)}
+                </p>
+              )}
+            </div>
+
+            <TicketTear />
+
+            <div className="px-6 pb-6">
+              {full ? (
+                <>
+                  <p className="font-poster text-[30px] font-extrabold uppercase leading-none">Sold out</p>
+                  <p className="mt-1 font-ui text-[14px] text-void/65">
+                    All {PARTY_MAX} seats are taken at this table.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="mt-4 w-full rounded-2xl bg-void py-3.5 font-poster text-[22px] font-extrabold uppercase tracking-[0.03em] text-bone"
+                  >
+                    Start your own
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="join-name" className="smallprint text-void/55">
+                    Your name
+                  </label>
+                  <input
+                    id="join-name"
+                    value={name}
+                    maxLength={16}
+                    autoFocus
+                    autoComplete="nickname"
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && join()}
+                    onFocus={() => primeSound()}
+                    placeholder="So they know it's you"
+                    className="mt-0.5 w-full border-b-2 border-void/15 bg-transparent pb-1 font-aside text-[34px] leading-tight text-void outline-none transition placeholder:text-void/25 focus:border-flare"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !name.trim()}
+                    onClick={() => {
+                      uiClick();
+                      void join();
+                    }}
+                    className="group mt-4 flex w-full items-center justify-between rounded-2xl bg-flare px-5 py-3.5 text-void transition hover:bg-flare-hi active:scale-[0.99] disabled:bg-void/10 disabled:text-void/35"
+                  >
+                    <span className="font-poster text-[26px] font-extrabold uppercase leading-none tracking-[0.03em]">
+                      {busy ? "Pulling up a chair…" : "Take a seat"}
+                    </span>
+                    <span aria-hidden className="nudge text-[22px]">
+                      →
+                    </span>
+                  </button>
+                  {error && <p className="mt-2 font-ui text-[13px] font-medium text-[#c2341b]">{error}</p>}
+                  <p className="mt-3 font-ui text-[12.5px] leading-snug text-void/50">
+                    {game
+                      ? "A game's already on — you'll watch this one and get dealt into the next."
+                      : "No account needed. Your name is just for this table."}
+                  </p>
+                </>
+              )}
+            </div>
+          </Ticket>
+        </div>
+      </motion.div>
+    </DoorFrame>
+  );
+}
+
+function NotFound({ code }: { code: string }) {
+  const router = useRouter();
+  return (
+    <DoorFrame code={code}>
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }} className="w-full max-w-[420px]">
+        <Ticket className="overflow-hidden">
+          <TicketHead left="Admit none" right="Void" />
+          <div className="relative px-6 pb-6 pt-5">
             <span
               aria-hidden
-              className="absolute -right-4 -top-4 flex h-14 w-14 rotate-12 items-center justify-center rounded-full text-[#f2e2b8] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
-              style={{ background: "radial-gradient(circle at 38% 32%, #b23a48, #7d2532 70%)" }}
+              className="absolute right-5 top-8 rotate-[-14deg] rounded-md border-[3px] border-flare px-3 py-1 font-poster text-[34px] font-extrabold uppercase leading-none text-flare opacity-80"
             >
-              <span className="font-shell text-xl">P</span>
+              Void
             </span>
-
-            <div className="font-hand text-[32px] font-bold leading-none text-[#463d2e]">You&apos;re invited.</div>
-            <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.26em] text-[#8a7d68]">
-              Reserved · table
+            <p className="font-aside text-[24px] italic leading-none text-void/70">No table called</p>
+            <div className="mt-1 font-poster text-[96px] font-extrabold uppercase leading-[0.82] tracking-[0.04em] text-void/35 line-through decoration-flare decoration-4" style={{ fontVariationSettings: '"opsz" 72' }}>
+              {code}
             </div>
-            <div className="font-shell text-[34px] leading-tight tracking-[0.3em] text-[#4c331d]">{code}</div>
-            {names.length > 0 && (
-              <p className="mt-2 font-hand text-[16px] leading-snug text-[#7a6d58]">
-                already seated: <span className="text-[#5d5344]">{names.join(", ")}</span>
-              </p>
-            )}
+            <p className="mt-4 font-ui text-[14px] leading-snug text-void/65">
+              Either the code&apos;s off by a letter, or everyone went home hours ago.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="mt-5 w-full rounded-2xl bg-void py-3.5 font-poster text-[22px] font-extrabold uppercase tracking-[0.03em] text-bone"
+            >
+              Back to the door
+            </button>
+          </div>
+        </Ticket>
+      </motion.div>
+    </DoorFrame>
+  );
+}
 
-            {full ? (
-              <div className="mt-6">
-                <p className="font-hand text-[18px] font-semibold text-[#a63c2b]">
-                  ✗ every chair is taken ({PARTY_MAX} of {PARTY_MAX})
-                </p>
-                <button
-                  onClick={() => router.push("/")}
-                  className="mt-4 w-full rounded-[4px] border-[2px] border-[#6b4a2a] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b4a2a] transition hover:bg-[#6b4a2a]/10"
-                >
-                  Back to the door
-                </button>
-              </div>
-            ) : (
-              <>
-                <label
-                  className="mt-6 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a7d68]"
-                  htmlFor="join-name"
-                >
-                  Sign your name
-                </label>
-                <input
-                  id="join-name"
-                  value={name}
-                  maxLength={16}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && join()}
-                  onFocus={() => primeSound()}
-                  placeholder="write it here…"
-                  className="mt-1 w-full border-b-2 border-dashed border-[#a89878] bg-transparent pb-1 font-hand text-[26px] font-semibold text-[#2e2a24] outline-none placeholder:text-[#b3a68c] focus:border-[#b3402e]"
-                />
-                <button
-                  type="button"
-                  disabled={busy || !name.trim()}
-                  onClick={join}
-                  className="mt-5 w-full -rotate-1 rounded-[4px] border-[2.5px] border-[#a63c2b] px-4 py-3 text-[13px] font-bold uppercase tracking-[0.24em] text-[#a63c2b] shadow-[inset_0_0_0_1.5px_rgba(166,60,43,0.35)] transition-all duration-150 hover:bg-[#a63c2b]/10 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35"
-                >
-                  {busy ? "Pulling up a chair…" : "⬢ Take a seat"}
-                </button>
-                <p className="mt-3 font-hand text-[15px] leading-snug text-[#8a7d68]">
-                  game already going? you&apos;ll watch from behind the chairs and get dealt into the next one.
-                </p>
-                {error && <p className="mt-3 font-hand text-[16px] font-semibold text-[#a63c2b]">✗ {error}</p>}
-              </>
-            )}
-          </PaperCard>
-        </div>
-      </FeltSurface>
+function Finding() {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4">
+      <motion.span className="text-flare" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }}>
+        <Spark size={26} />
+      </motion.span>
+      <span className="smallprint text-dust">Finding your table…</span>
     </main>
+  );
+}
+
+function ConfirmSheet({ text, yes, onYes, onNo }: { text: string; yes: string; onYes: () => void; onNo: () => void }) {
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-void/75 backdrop-blur-sm" onClick={onNo} />
+      <motion.div
+        initial={{ y: 24, scale: 0.98 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 16, scale: 0.98 }}
+        transition={{ duration: 0.26, ease: EASE }}
+        className="relative w-full max-w-[360px] rounded-3xl border border-seam bg-soot p-6"
+      >
+        <p className="font-poster text-[30px] font-extrabold uppercase leading-none">Heading out?</p>
+        <p className="mt-2 font-ui text-[14px] text-dust">{text}</p>
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onNo} className="flex-1 rounded-2xl border border-seam py-3 font-ui text-[13.5px] font-semibold text-bone transition hover:border-dust">
+            Stay
+          </button>
+          <button type="button" onClick={onYes} className="flex-1 rounded-2xl bg-flare py-3 font-ui text-[13.5px] font-semibold text-void transition hover:bg-flare-hi">
+            {yes}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function StageToast({ message, onDone }: { message: string | null; onDone: () => void }) {
+  useEffect(() => {
+    if (!message) return;
+    const id = setTimeout(onDone, 3000);
+    return () => clearTimeout(id);
+  }, [message, onDone]);
+  return (
+    <AnimatePresence>
+      {message && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 10, opacity: 0 }}
+          className="fixed bottom-24 left-1/2 z-[95] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2.5 rounded-full bg-bone px-5 py-2.5 font-ui text-[13.5px] font-medium text-void shadow-[0_12px_30px_rgba(0,0,0,0.5)] lg:bottom-8"
+        >
+          <Spark size={10} className="shrink-0 text-flare" />
+          {message}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
 export function PartyRoom({ code }: { code: string }) {
   const router = useRouter();
   const party = useParty(code);
-  const [confirm, setConfirm] = useState<"end" | "leave" | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  // every game screen carries the Parlour menu; if one ever renders without
+  // it, the room floats its own so nobody is stuck inside a game
+  const [menus, setMenus] = useState(0);
+  const [orphan, setOrphan] = useState(false);
+  const register = useCallback(() => {
+    setMenus((c) => c + 1);
+    return () => setMenus((c) => c - 1);
+  }, []);
 
   const { ready, session, view, preview, notFound, connection, toast, clearToast, skew, join, move } = party;
 
@@ -207,9 +328,13 @@ export function PartyRoom({ code }: { code: string }) {
 
   const inGame = view?.phase === "game" && view.game;
   const isHost = !!view && view.hostId === view.youId;
-  const gameMeta = inGame ? GAME_META[view!.game!.type] : null;
   const gv = inGame ? (view!.game!.view as { winner?: unknown; winnerId?: unknown } | null) : null;
   const gameFinished = !!gv && (gv.winner != null || gv.winnerId != null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setOrphan(!!inGame && menus === 0), menus === 0 ? 900 : 0);
+    return () => window.clearTimeout(id);
+  }, [inGame, menus]);
 
   async function leaveParty() {
     await move({ kind: "party", action: "leave" });
@@ -219,143 +344,83 @@ export function PartyRoom({ code }: { code: string }) {
 
   let body: React.ReactNode;
   if (notFound) {
-    body = (
-      <main className="flex flex-1 flex-col">
-        <FeltSurface>
-          <div className="flex flex-1 items-center justify-center px-4">
-            <PaperCard rotate={1.4} className="w-full max-w-[360px] px-7 py-8 text-center">
-              <div className="font-hand text-[28px] font-bold text-[#463d2e]">Table {code}?</div>
-              <p className="mt-2 font-hand text-[17px] leading-snug text-[#7a6d58]">
-                nobody here — either the code&apos;s wrong or everyone went home hours ago.
-              </p>
-              <button
-                onClick={() => router.push("/")}
-                className="mt-5 w-full rounded-[4px] border-[2px] border-[#6b4a2a] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6b4a2a] transition hover:bg-[#6b4a2a]/10"
-              >
-                Back to the door
-              </button>
-            </PaperCard>
-          </div>
-        </FeltSurface>
-      </main>
-    );
+    body = <NotFound code={code.toUpperCase()} />;
   } else if (!ready || (!view && !preview)) {
-    body = (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="slabel animate-pulse">Finding your table…</div>
-      </main>
-    );
+    body = <Finding />;
   } else if (!session || !view) {
     body = (
       <JoinGate
         code={code.toUpperCase()}
         names={preview?.names ?? []}
+        game={preview?.phase === "game" ? preview.game : null}
         full={(preview?.memberCount ?? 0) >= PARTY_MAX}
         onJoin={join}
       />
     );
   } else if (view.phase === "lobby" || !view.game) {
-    body = (
-      <FeltSurface>
-        <PartyLobby v={view} move={move} onLeave={() => setConfirm("leave")} />
-      </FeltSurface>
-    );
+    body = <PartyLobby v={view} move={(m) => void move(m)} connection={connection} onLeave={() => setConfirmLeave(true)} />;
   } else {
     const ui = GAME_UI[view.game.type];
     if (!ui) {
       body = (
-        <main className="flex flex-1 items-center justify-center px-4">
-          <SPanel className="p-8 text-center">
-            <p className="text-linen-300">This game isn&apos;t available in this build.</p>
-          </SPanel>
+        <main className="flex min-h-dvh items-center justify-center px-4">
+          <p className="font-ui text-dust">{GAME_META[view.game.type]?.title ?? "This game"} isn&apos;t available in this build.</p>
         </main>
       );
     } else {
       const Screen = ui.Screen as React.ComponentType<GameScreenProps>;
+      const seated = view.game.players.includes(view.youId);
       body = (
-        <Screen
-          view={view.game.view}
-          party={view}
-          youId={view.youId}
-          isHost={isHost}
-          skew={skew}
-          spectating={!view.game.players.includes(view.youId)}
-          move={(m) => void move({ kind: "game", move: m })}
-          playAgain={() => void move({ kind: "party", action: "start_game", game: view.game!.type })}
-          exitToLobby={() => void move({ kind: "party", action: "end_game" })}
-        />
+        <PartyChromeProvider
+          value={{
+            code: code.toUpperCase(),
+            connection,
+            isHost,
+            canEnd: isHost && !gameFinished,
+            forfeits: seated && !gameFinished,
+            onEnd: () => void move({ kind: "party", action: "end_game" }),
+            onLeave: () => void leaveParty(),
+            register,
+          }}
+        >
+          {orphan && (
+            <div className="fixed right-3 top-3 z-[80]">
+              <PartyMenu fallback className="bg-void/85 text-bone opacity-100 shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-md" />
+            </div>
+          )}
+          <Screen
+            view={view.game.view}
+            party={view}
+            youId={view.youId}
+            isHost={isHost}
+            skew={skew}
+            spectating={!seated}
+            move={(m) => void move({ kind: "game", move: m })}
+            playAgain={() => void move({ kind: "party", action: "start_game", game: view.game!.type })}
+            exitToLobby={() => void move({ kind: "party", action: "end_game" })}
+          />
+        </PartyChromeProvider>
       );
     }
   }
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="z-30 flex items-center justify-between border-b border-night-600/60 bg-night-900/70 px-4 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <NeonMark className="text-xl leading-none" />
-          {gameMeta && (
-            <span className="hidden text-[10px] uppercase tracking-[0.2em] text-linen-500 sm:inline">
-              · {gameMeta.title}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <ConnectionDot c={connection} />
-          <span className="hidden rounded-full border border-night-600 px-3 py-1 font-shell text-[13px] font-semibold tracking-[0.28em] text-coral-300 sm:inline">
-            {code.toUpperCase()}
-          </span>
-          {inGame && isHost && !gameFinished && (
-            <button
-              onClick={() => setConfirm("end")}
-              className="rounded-lg border border-blood-500/40 px-2.5 py-1 text-[9.5px] font-semibold uppercase tracking-[0.16em] text-blood-300 transition hover:border-blood-400"
-            >
-              End game
-            </button>
-          )}
-          <SoundToggle />
-          {session && view && (
-            <button
-              onClick={() => setConfirm("leave")}
-              className="text-linen-500 transition hover:text-blood-400"
-              aria-label="Leave the party"
-              title="Leave the party"
-            >
-              <Icons.x size={16} />
-            </button>
-          )}
-        </div>
-      </header>
-
       {body}
-
-      {confirm === "end" && (
-        <ConfirmSheet
-          text="Abandon the current game and send everyone back to the lobby?"
-          confirmLabel="End it"
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            setConfirm(null);
-            void move({ kind: "party", action: "end_game" });
-          }}
-        />
-      )}
-      {confirm === "leave" && (
-        <ConfirmSheet
-          text={
-            inGame && view?.game?.players.includes(view.youId) && !gameFinished
-              ? "Leave the party? You'll forfeit your place in the current game."
-              : "Leave the party?"
-          }
-          confirmLabel="Leave"
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            setConfirm(null);
-            void leaveParty();
-          }}
-        />
-      )}
-
-      <Toast message={toast} onDone={clearToast} />
+      <AnimatePresence>
+        {confirmLeave && (
+          <ConfirmSheet
+            text="You'll leave this table. You can rejoin with the code while it's open."
+            yes="Leave"
+            onNo={() => setConfirmLeave(false)}
+            onYes={() => {
+              setConfirmLeave(false);
+              void leaveParty();
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <StageToast message={toast} onDone={clearToast} />
     </div>
   );
 }

@@ -5,7 +5,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const { code } = await params;
   return {
     title: `Party ${code.toUpperCase()} — PARLOUR`,
-    description: "You've been invited to game night. Coup, UNO, Monopoly Deal, Teen Patti — no accounts, just a code.",
+    description: "You're on the list for game night — fourteen games, played live on everyone's phone. No accounts, just a code.",
   };
 }
 

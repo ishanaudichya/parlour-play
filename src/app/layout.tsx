@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Cinzel, Inter, Young_Serif } from "next/font/google";
+import { Big_Shoulders, Cinzel, Geist, Geist_Mono, Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 
 const cinzel = Cinzel({
@@ -8,20 +8,33 @@ const cinzel = Cinzel({
   weight: ["400", "600", "700", "900"],
 });
 
-const youngSerif = Young_Serif({
-  variable: "--font-young",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const caveat = Caveat({
-  variable: "--font-caveat",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+/* the Parlour's own type: a gig-poster display face, a serif for asides,
+   a clean sans and a mono for the small print */
+const bigShoulders = Big_Shoulders({
+  variable: "--font-bigshoulders",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
+
+const instrument = Instrument_Serif({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
+
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -37,7 +50,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0c0a12",
+  themeColor: "#0b0a09",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -51,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cinzel.variable} ${youngSerif.variable} ${caveat.variable} ${inter.variable} h-full antialiased`}
+      className={`${cinzel.variable} ${inter.variable} ${bigShoulders.variable} ${instrument.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="relative min-h-full flex flex-col">
         <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>

@@ -6,6 +6,7 @@
 
 import { motion } from "framer-motion";
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { railFont, railH, railW } from "./layout";
 import {
   GRID,
   type Dir,
@@ -48,23 +49,32 @@ const cellBox = (x: number, y: number) => ({
   height: "10%",
 });
 
-/* ---------------- frame with A–J / 1–10 rails ---------------- */
+/* ---------------- frame with A–J / 1–10 rails ----------------
+   `size` is the 10×10 water in px; the rails sit outside it and grow with
+   it. Everything inside reads `--cell` so stamps and studs scale too. */
 
-function GridFrame({ children, dimmed }: { children: ReactNode; dimmed?: boolean }) {
+function GridFrame({ children, dimmed, size }: { children: ReactNode; dimmed?: boolean; size: number }) {
+  const rw = railW(size);
+  const rh = railH(size);
+  const font = railFont(size);
+  const rail = { color: "rgba(123,168,192,0.75)", fontSize: font };
   return (
-    <div className={`w-full transition-opacity ${dimmed ? "opacity-55" : ""}`}>
+    <div
+      className={`shrink-0 transition-opacity ${dimmed ? "opacity-55" : ""}`}
+      style={{ width: size + rw, ["--cell" as string]: `${size / 10}px` }}
+    >
       <div
-        className="mb-0.5 ml-[20px] grid grid-cols-10 text-center text-[9px] font-semibold tracking-[0.12em] tabular-nums"
-        style={{ color: "rgba(123,168,192,0.75)" }}
+        className="grid grid-cols-10 items-end pb-[3px] text-center font-semibold leading-none tracking-[0.12em] tabular-nums"
+        style={{ ...rail, height: rh, marginLeft: rw }}
       >
         {LETTERS.map((l) => (
           <span key={l}>{l}</span>
         ))}
       </div>
-      <div className="flex items-stretch">
+      <div className="flex">
         <div
-          className="mr-1 grid w-4 grid-rows-10 text-right text-[9px] font-semibold tabular-nums"
-          style={{ color: "rgba(123,168,192,0.75)" }}
+          className="grid grid-rows-10 pr-[5px] text-right font-semibold leading-none tabular-nums"
+          style={{ ...rail, width: rw, height: size }}
         >
           {Array.from({ length: GRID }, (_, i) => (
             <span key={i} className="self-center justify-self-end">
@@ -73,8 +83,10 @@ function GridFrame({ children, dimmed }: { children: ReactNode; dimmed?: boolean
           ))}
         </div>
         <div
-          className="relative aspect-square min-w-0 flex-1 overflow-hidden rounded-[5px] border"
+          className="relative shrink-0 overflow-hidden rounded-[5px] border"
           style={{
+            width: size,
+            height: size,
             borderColor: "rgba(61,222,155,0.32)",
             background: "linear-gradient(158deg, rgba(10,26,38,0.92) 0%, rgba(5,13,20,0.96) 100%)",
             boxShadow: "inset 0 0 44px rgba(2,9,15,0.9), 0 0 26px rgba(61,222,155,0.05)",
@@ -93,6 +105,10 @@ function GridFrame({ children, dimmed }: { children: ReactNode; dimmed?: boolean
     </div>
   );
 }
+
+/** Hull inset and stamp size, as a share of one cell. */
+const HULL_INSET = "max(3px, calc(var(--cell) * 0.07))";
+const STAMP_FONT = "max(9px, calc(var(--cell) * 0.26))";
 
 /* ---------------- markers ---------------- */
 
@@ -167,8 +183,9 @@ function SunkHull({ sk }: { sk: SunkShipView }) {
       transition={{ duration: 0.45, ease: "easeOut" }}
     >
       <div
-        className="absolute inset-[3px] rounded-full border"
+        className="absolute rounded-full border"
         style={{
+          inset: HULL_INSET,
           borderColor: "rgba(255,77,94,0.7)",
           background: "linear-gradient(180deg, rgba(32,44,56,0.94), rgba(12,20,28,0.96))",
           boxShadow: "0 0 14px rgba(255,77,94,0.22), inset 0 1px 0 rgba(255,255,255,0.06)",
@@ -176,8 +193,9 @@ function SunkHull({ sk }: { sk: SunkShipView }) {
       />
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <motion.div
-          className="flex items-center gap-1 rounded-sm border px-1 py-px text-[9px] font-bold leading-none tracking-widest"
+          className="flex items-center gap-1 rounded-sm border px-[0.4em] py-[0.12em] font-bold leading-none tracking-widest"
           style={{
+            fontSize: STAMP_FONT,
             borderColor: RED,
             color: RED,
             rotate: -7,
@@ -209,8 +227,9 @@ function ShipHull({
   const body = (
     <>
       <div
-        className="absolute inset-[3px] rounded-full border"
+        className="absolute rounded-full border"
         style={{
+          inset: HULL_INSET,
           borderColor: ship.sunk
             ? "rgba(255,77,94,0.8)"
             : selected
@@ -244,8 +263,8 @@ function ShipHull({
       </div>
       {ship.sunk && (
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm border px-1 text-[9px] font-bold leading-tight"
-          style={{ borderColor: RED, color: RED, rotate: "-7deg", background: "rgba(10,16,22,0.72)" }}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm border px-[0.4em] font-bold leading-tight"
+          style={{ fontSize: STAMP_FONT, borderColor: RED, color: RED, rotate: "-7deg", background: "rgba(10,16,22,0.72)" }}
         >
           ✕
         </div>
@@ -294,7 +313,10 @@ export function FleetBoard({
   onCell,
   onShip,
   dimmed,
+  size,
 }: {
+  /** the water, px */
+  size: number;
   fleet: YourShipView[];
   incoming: Shot[];
   /** placement mode: cells are tap targets, hulls can be picked up */
@@ -313,7 +335,7 @@ export function FleetBoard({
   const preview = placing && hover && previewFor ? previewFor(hover.x, hover.y) : null;
 
   return (
-    <GridFrame dimmed={dimmed}>
+    <GridFrame dimmed={dimmed} size={size}>
       <div
         className="absolute inset-0 grid grid-cols-10 grid-rows-10"
         onMouseLeave={() => setHover(null)}
@@ -339,8 +361,9 @@ export function FleetBoard({
       {preview && (
         <div className="pointer-events-none absolute z-20" style={hullBox(preview.box)}>
           <div
-            className="absolute inset-[3px] rounded-full border border-dashed"
+            className="absolute rounded-full border border-dashed"
             style={{
+              inset: HULL_INSET,
               borderColor: preview.valid ? BRIGHT : RED,
               background: preview.valid ? "rgba(61,222,155,0.14)" : "rgba(255,77,94,0.12)",
             }}
@@ -382,7 +405,10 @@ export function TargetBoard({
   active,
   onShoot,
   dimmed,
+  size,
 }: {
+  /** the water, px */
+  size: number;
   /** your shots into these waters */
   shots: Shot[];
   /** revealed (fully sunk) enemy hulls */
@@ -402,7 +428,7 @@ export function TargetBoard({
   }
 
   return (
-    <GridFrame dimmed={dimmed}>
+    <GridFrame dimmed={dimmed} size={size}>
       <div
         className="absolute inset-0 grid grid-cols-10 grid-rows-10"
         onMouseLeave={() => setHover(null)}
@@ -467,8 +493,13 @@ export function TargetBoard({
 
       {active && hover && (
         <div
-          className="pointer-events-none absolute right-1 top-1 z-40 rounded-sm border px-1 py-px text-[10px] font-semibold tabular-nums"
-          style={{ borderColor: "rgba(109,255,192,0.4)", color: BRIGHT, background: "rgba(5,11,18,0.8)" }}
+          className="pointer-events-none absolute right-1.5 top-1.5 z-40 rounded-sm border px-[0.4em] py-[0.1em] font-semibold tabular-nums"
+          style={{
+            fontSize: "max(10px, calc(var(--cell) * 0.2))",
+            borderColor: "rgba(109,255,192,0.4)",
+            color: BRIGHT,
+            background: "rgba(5,11,18,0.8)",
+          }}
         >
           {coordLabel(hover.x, hover.y)}
         </div>
@@ -484,9 +515,15 @@ export type PipState = "ok" | "hit" | "sunk" | "unknown";
 export function FleetStatusPanel({
   title,
   rows,
+  variant = "list",
+  scale = 400,
 }: {
   title: string;
   rows: { name: string; pips: PipState[]; sunk: boolean }[];
+  /** list: titled rows (beside a board) · strip: one fixed-height row of five ships (under a board) */
+  variant?: "list" | "strip";
+  /** the board this panel serves, px — text and pips grow with it */
+  scale?: number;
 }) {
   const pipStyle = (p: PipState): CSSProperties => {
     switch (p) {
@@ -500,26 +537,53 @@ export function FleetStatusPanel({
         return { background: "rgba(123,168,192,0.3)" };
     }
   };
+  const font = Math.round(Math.min(13, Math.max(9, scale * 0.018)));
+  const pip = Math.round(Math.min(10, Math.max(7, scale * 0.012)));
+  const box: CSSProperties = { borderColor: "rgba(61,222,155,0.2)", background: "rgba(8,18,28,0.6)" };
+
+  if (variant === "strip") {
+    return (
+      <div
+        className={`mt-2 grid h-[38px] grid-cols-5 items-center rounded-md border ${scale < 380 ? "gap-1 px-1.5" : "gap-1.5 px-2.5"}`}
+        style={box}
+        aria-label={title}
+      >
+        {rows.map((r) => (
+          <div key={r.name} className="flex min-w-0 flex-col items-center gap-[5px]" title={r.name}>
+            <span className="flex gap-[3px]">
+              {r.pips.map((p, i) => (
+                <span key={i} className="rounded-[2px]" style={{ ...pipStyle(p), width: pip, height: pip }} />
+              ))}
+            </span>
+            <span
+              className={`max-w-full truncate uppercase leading-none ${scale < 380 ? "tracking-[0.02em]" : "tracking-[0.1em]"} ${r.sunk ? "line-through" : ""}`}
+              style={{ fontSize: scale < 380 ? 8 : font - 1, color: r.sunk ? "rgba(255,77,94,0.8)" : "rgba(207,232,221,0.7)" }}
+            >
+              {r.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="rounded-md border px-2.5 py-2"
-      style={{ borderColor: "rgba(61,222,155,0.2)", background: "rgba(8,18,28,0.6)" }}
-    >
-      <div className="text-[9px] font-semibold uppercase tracking-[0.24em]" style={{ color: STEEL }}>
+    <div className="rounded-md border px-2.5 py-2" style={box}>
+      <div className="font-semibold uppercase tracking-[0.24em]" style={{ color: STEEL, fontSize: font - 1 }}>
         {title}
       </div>
       <div className="mt-1.5 space-y-1">
         {rows.map((r) => (
-          <div key={r.name} className="flex items-center justify-between gap-2 text-[10px]">
+          <div key={r.name} className="flex items-center justify-between gap-2" style={{ fontSize: font }}>
             <span
-              className={`uppercase tracking-[0.14em] ${r.sunk ? "line-through" : ""}`}
+              className={`truncate uppercase tracking-[0.12em] ${r.sunk ? "line-through" : ""}`}
               style={{ color: r.sunk ? "rgba(255,77,94,0.8)" : "rgba(207,232,221,0.85)" }}
             >
               {r.name}
             </span>
-            <span className="flex gap-[3px]">
+            <span className="flex shrink-0 gap-[3px]">
               {r.pips.map((p, i) => (
-                <span key={i} className="h-[7px] w-[7px] rounded-[2px]" style={pipStyle(p)} />
+                <span key={i} className="rounded-[2px]" style={{ ...pipStyle(p), width: pip, height: pip }} />
               ))}
             </span>
           </div>

@@ -454,7 +454,7 @@ export function MdTableMini({ t, w = 40, onClick }: { t: TableCard; w?: number; 
   return (
     <El
       onClick={onClick}
-      className={`relative shrink-0 overflow-hidden text-left ${onClick ? "active:scale-95 transition-transform" : ""}`}
+      className={`relative block shrink-0 overflow-hidden text-left ${onClick ? "active:scale-95 transition-transform" : ""}`}
       style={{
         width: w,
         height: Math.round(w * 1.36),
@@ -491,24 +491,27 @@ export function MdTableMini({ t, w = 40, onClick }: { t: TableCard; w?: number; 
   );
 }
 
-/** color progress chip for opponent ledgers */
+/** set progress chip for crowded opponent ledgers (dark table): one deed pip
+    per card the set needs, filled for each card filed */
 export function SetChip({ color, count, complete }: { color: MonoColor; count: number; complete: boolean }) {
   const meta = COLOR_META[color];
   return (
     <span
-      className="relative inline-flex items-center gap-[3px] rounded-[4px] px-[5px] py-[2px]"
+      className="relative inline-flex h-[19px] items-center gap-[2px] rounded-[4px] px-[4px]"
+      title={`${meta.label} ${count}/${meta.setSize}${complete ? " — complete" : ""}`}
       style={{
-        background: complete ? meta.hex : `${meta.hex}2e`,
-        border: `1px solid ${complete ? meta.hex : `${meta.hex}88`}`,
+        background: complete ? `${meta.hex}40` : "rgba(240,234,217,0.05)",
+        border: `1px solid ${complete ? meta.hex : `${meta.hex}99`}`,
       }}
     >
-      <span
-        className="text-[9px] font-bold tabular-nums"
-        style={{ color: complete ? meta.ink : INK }}
-      >
-        {count}/{meta.setSize}
-      </span>
-      {complete && <SealMark size={10} />}
+      {Array.from({ length: Math.max(meta.setSize, count) }, (_, i) => (
+        <span
+          key={i}
+          className="h-[11px] w-[7px] rounded-[1.5px]"
+          style={i < count ? { background: meta.hex, boxShadow: "inset 0 0 0 1px rgba(250,246,234,0.35)" } : { border: `1px solid ${meta.hex}88` }}
+        />
+      ))}
+      {complete && <SealMark size={11} />}
     </span>
   );
 }

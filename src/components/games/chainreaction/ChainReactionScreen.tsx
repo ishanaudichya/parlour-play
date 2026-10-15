@@ -7,7 +7,8 @@
    tips over bursts in the next wave. */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { getMutedServerSnapshot, getMutedSnapshot, primeSound, setMuted, subscribeMuted } from "@/lib/client/synthCore";
 import { criticalMass } from "@/lib/games/chainreaction/engine";
 import { TURN_MS, type ChainLogEntry, type ChainMove, type ChainView, type ChainViewPlayer } from "@/lib/games/chainreaction/types";
@@ -15,7 +16,7 @@ import type { GameScreenProps } from "@/lib/party/types";
 import { ChainBoardView } from "./Board";
 import { chakra } from "./font";
 import { ChainRulesModal, GameOverCard, OrbChip } from "./Overlays";
-import { cascadeTimeline, CREAM, MUTED, paintFor, SWIFT } from "./palette";
+import { cascadeTimeline, CELL, CREAM, FRAME, MUTED, paintFor, SWIFT } from "./palette";
 import { useCascadePlayback } from "./playback";
 import { chainSfx, playChainDiff } from "./sfx";
 
@@ -91,12 +92,37 @@ function DeadlineBar({ deadline, nowEst, color, label }: { deadline: number; now
 
 /* ---------------- roster card ---------------- */
 
-function PlayerCard({ p, active, you, wins, won, share }: { p: ChainViewPlayer; active: boolean; you: boolean; wins: number; won: boolean; share: number }) {
+/** Narrow roster cards — "You" in place of your own name, orbs only. They
+    switch on with a media variant, so the same card is roomy in the side
+    panel and compact in a four-across portrait grid. Literal class strings,
+    so Tailwind sees every one. */
+const DENSE = {
+  /** three players: only phones need it */
+  phone: {
+    card: "max-sm:gap-1.5 max-sm:px-1.5 max-sm:py-1.5",
+    name: "max-sm:text-[12px]",
+    full: "max-sm:hidden",
+    short: "sm:hidden",
+    stats: "max-sm:gap-1 max-sm:text-[9px] max-sm:tracking-[0.04em]",
+  },
+  /** four or more: any portrait screen packs them four across */
+  portrait: {
+    card: "portrait:gap-1.5 portrait:px-1.5 portrait:py-1.5 portrait:sm:gap-2 portrait:sm:px-2.5",
+    name: "portrait:text-[12px]",
+    full: "portrait:hidden",
+    short: "landscape:hidden",
+    stats: "portrait:gap-1 portrait:text-[9px] portrait:tracking-[0.04em] portrait:sm:tracking-[0.14em]",
+  },
+} as const;
+type Dense = keyof typeof DENSE | null;
+
+function PlayerCard({ p, active, you, wins, won, share, dense }: { p: ChainViewPlayer; active: boolean; you: boolean; wins: number; won: boolean; share: number; dense: Dense }) {
   const paint = paintFor(p.seat);
   const out = !p.alive;
+  const D = dense ? DENSE[dense] : null;
   return (
     <div
-      className="relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-[border-color,background,box-shadow] duration-300"
+      className={`relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 transition-[border-color,background,box-shadow] duration-300 ${D?.card ?? ""}`}
       style={{
         borderColor: active ? `${paint.base}88` : "rgba(255,255,255,0.07)",
         background: active ? `${paint.base}14` : "rgba(255,255,255,0.025)",
@@ -113,7 +139,7 @@ function PlayerCard({ p, active, you, wins, won, share }: { p: ChainViewPlayer; 
         />
       )}
       <div className="relative shrink-0">
-        <OrbChip seat={p.seat} size={22} dim={out} />
+        <OrbChip seat={p.seat} size={20} dim={out} />
         {active && (
           <motion.span
             className="absolute -inset-1 rounded-full"
@@ -125,23 +151,32 @@ function PlayerCard({ p, active, you, wins, won, share }: { p: ChainViewPlayer; 
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className={`truncate text-[12.5px] font-semibold ${p.left ? "line-through" : ""}`} style={{ color: won ? paint.light : out ? MUTED : CREAM }}>
-            {p.name}
+          <span className={`truncate text-[12.5px] font-semibold ${D?.name ?? ""} ${p.left ? "line-through" : ""}`} style={{ color: won ? paint.light : out ? MUTED : CREAM }}>
+            {you && D ? (
+              <>
+                <span className={D.short}>You</span>
+                <span className={D.full}>{p.name}</span>
+              </>
+            ) : (
+              p.name
+            )}
           </span>
           {you && (
-            <span className="rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em]" style={{ background: "rgba(255,255,255,0.1)", color: MUTED }}>
+            <span className={`shrink-0 rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.14em] ${D?.full ?? ""}`} style={{ background: "rgba(255,255,255,0.1)", color: MUTED }}>
               you
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[9.5px] uppercase tracking-[0.14em]" style={{ color: MUTED }}>
+        <div className={`mt-0.5 flex items-center gap-2 whitespace-nowrap text-[9.5px] uppercase tracking-[0.14em] ${D?.stats ?? ""}`} style={{ color: MUTED }}>
           {out ? (
-            <span style={{ color: p.left ? MUTED : "#ff8a95" }}>{p.left ? "left" : "knocked out"}</span>
+            <span style={{ color: p.left ? MUTED : "#ff8a95" }}>{p.left ? "left" : D ? "out" : "knocked out"}</span>
           ) : (
             <>
               <span className="tabular-nums">{p.orbs} orbs</span>
-              <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-              <span className="tabular-nums">{p.cells} cells</span>
+              <span aria-hidden className={D?.full} style={{ opacity: 0.4 }}>
+                ·
+              </span>
+              <span className={`tabular-nums ${D?.full ?? ""}`}>{p.cells} cells</span>
             </>
           )}
           {wins > 0 && (
@@ -153,6 +188,49 @@ function PlayerCard({ p, active, you, wins, won, share }: { p: ChainViewPlayer; 
       </div>
     </div>
   );
+}
+
+/* ---------------- fitting the glass to the room ---------------- */
+
+/** Board units per CSS pixel are capped so a huge monitor doesn't get
+    football-pitch cells: 100-unit cells top out at ~125px. */
+const MAX_SCALE = 1.25;
+/** the log ticker under the glass */
+const TICKER_H = 30;
+
+/**
+ * Sizes the board to the room it actually has. The bench is a row (side
+ * panel + glass) in landscape and a column (panel above the glass) in
+ * portrait — CSS decides which; this reads the result, subtracts the panel
+ * and the ticker, and fits the board's aspect into what's left.
+ */
+function useGlassFit(aspect: number, unitsW: number) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<{ w: number; h: number; side: boolean }>({ w: 0, h: 0, side: false });
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    const panel = panelRef.current;
+    if (!row || !panel) return;
+    const measure = () => {
+      const cs = getComputedStyle(row);
+      const side = cs.flexDirection === "row";
+      const W = row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const H = row.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const gap = parseFloat(side ? cs.columnGap : cs.rowGap) || 0;
+      const availW = side ? W - panel.offsetWidth - gap : W;
+      const availH = (side ? H : H - panel.offsetHeight - gap) - TICKER_H;
+      const w = Math.max(0, Math.floor(Math.min(availW, availH * aspect, unitsW * MAX_SCALE)));
+      const next = { w, h: Math.floor(w / aspect), side };
+      setFit((f) => (f.w === next.w && f.h === next.h && f.side === next.side ? f : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, [aspect, unitsW]);
+  return { rowRef, panelRef, fit };
 }
 
 /* ==================== screen ==================== */
@@ -264,11 +342,18 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
     return c.n + 1 >= crit ? "this one bursts" : `${crit - c.n - 1} more to burst`;
   }, [interactive, hoverCell, me, v.board, v.cols, v.rows]);
 
-  const boardAspect = (v.cols * 100 + 36) / (v.rows * 100 + 36);
+  const unitsW = v.cols * CELL + FRAME * 2;
+  const boardAspect = unitsW / (v.rows * CELL + FRAME * 2);
+  const { rowRef, panelRef, fit } = useGlassFit(boardAspect, unitsW);
+  const n = v.players.length;
+  // portrait roster: everyone on one or two even rows; three or more go dense on phones
+  const rosterCols = n <= 2 ? "grid-cols-2" : n === 3 || n === 5 || n === 6 ? "grid-cols-3" : "grid-cols-4";
+  const dense: Dense = n >= 4 ? "portrait" : n === 3 ? "phone" : null;
+  const toolBtn = "flex h-8 items-center justify-center rounded-lg border px-2.5 transition hover:border-white/30";
 
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      className="relative flex h-dvh flex-col overflow-hidden"
       style={{
         background: `radial-gradient(100% 60% at 50% -10%, ${turnColor}26 0%, ${turnColor}08 36%, transparent 64%), linear-gradient(180deg, #11131b 0%, #0a0b10 50%, #07080c 100%)`,
         fontFamily: "var(--font-sans)",
@@ -293,8 +378,8 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
       {/* bench light from above */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[46vh]" style={{ background: "radial-gradient(60% 100% at 50% 0%, rgba(255,255,255,0.05) 0%, transparent 70%)" }} />
 
-      {/* header */}
-      <header className="relative z-10 flex items-center justify-between gap-3 px-3 pb-1 pt-3 sm:px-5">
+      {/* header — rides above the game-over veil so the menu is always in reach */}
+      <header className="relative z-[55] flex shrink-0 items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-5">
         <div className="min-w-0">
           <h1
             className={`${chakra.className} truncate text-[15px] font-bold leading-none tracking-[0.08em] sm:text-[17px]`}
@@ -302,10 +387,12 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
           >
             CHAIN REACTION
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em]" style={{ color: MUTED }}>
+          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap text-[9px] uppercase tracking-[0.22em]" style={{ color: MUTED }}>
             <span className="tabular-nums">{orbsOnBoard} orbs</span>
-            <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-            <span>
+            <span aria-hidden className="max-sm:hidden" style={{ opacity: 0.4 }}>
+              ·
+            </span>
+            <span className="max-sm:hidden">
               {v.cols} × {v.rows}
             </span>
             <span aria-hidden style={{ opacity: 0.4 }}>·</span>
@@ -320,7 +407,7 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
             type="button"
             onClick={() => setMuted(!muted)}
             aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-            className={`rounded-lg border px-2.5 py-1.5 text-[13px] transition ${muted ? "line-through" : ""}`}
+            className={`${toolBtn} w-8 px-0 text-[13px] ${muted ? "line-through" : ""}`}
             style={{ borderColor: "rgba(255,255,255,0.14)", color: muted ? "rgba(138,144,163,0.5)" : MUTED }}
           >
             ♪
@@ -328,51 +415,60 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
           <button
             type="button"
             onClick={() => setRulesOpen(true)}
-            className="rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition"
+            className={`${toolBtn} text-[10px] font-semibold uppercase tracking-[0.16em]`}
             style={{ borderColor: "rgba(255,255,255,0.14)", color: MUTED }}
           >
             Rules
           </button>
+          <PartyMenu style={{ borderRadius: 8, borderColor: "rgba(255,255,255,0.14)", color: MUTED }} />
         </div>
       </header>
 
-      {spectating && (
+      {/* the bench: a side panel and the glass in landscape, stacked in portrait */}
+      <div
+        ref={rowRef}
+        className="relative z-10 flex min-h-0 flex-1 flex-col items-center gap-3 px-3 pb-3 sm:px-5 sm:landscape:flex-row sm:landscape:justify-center sm:landscape:gap-6 sm:landscape:pb-5"
+      >
+        {/* status + roster */}
         <div
-          className="relative z-10 mx-auto mt-1 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em]"
-          style={{ borderColor: "rgba(200,107,255,0.35)", background: "rgba(20,16,30,0.7)", color: "#d9b8ff" }}
+          ref={panelRef}
+          className="flex w-full max-w-[640px] shrink-0 flex-col gap-2 sm:landscape:min-h-0 sm:landscape:w-[clamp(210px,21vw,272px)] sm:landscape:gap-3"
+          style={fit.side && fit.h ? { height: fit.h + TICKER_H } : undefined}
         >
-          Spectating — safe behind the glass
-        </div>
-      )}
-
-      {/* banner + clock */}
-      <div className="relative z-10 mt-2 space-y-2 px-3 sm:px-5">
-        <div className="flex min-h-[30px] items-center justify-center gap-2.5">
-          {turnPlayer && v.phase === "play" && <OrbChip seat={turnPlayer.seat} size={16} />}
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={banner.text}
-              initial={{ y: 8, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -8, opacity: 0 }}
-              transition={{ duration: 0.28, ease: SWIFT }}
-              className={`${chakra.className} text-[15px] font-bold leading-none tracking-[0.04em] sm:text-[17px]`}
-              style={{ color: banner.color, textShadow: `0 0 20px ${banner.color}44` }}
+          {spectating && (
+            <div
+              className="mx-auto shrink-0 rounded-full border px-3 py-0.5 text-[9px] uppercase tracking-[0.26em] sm:landscape:mx-0 sm:landscape:self-start"
+              style={{ borderColor: "rgba(200,107,255,0.35)", background: "rgba(20,16,30,0.7)", color: "#d9b8ff" }}
             >
-              {banner.text}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-        {v.phase === "play" && v.deadline !== null && (
-          <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={turnColor} label={turnPlayer ? `${turnPlayer.name}'s turn` : "turn clock"} />
-        )}
-      </div>
+              Spectating<span className="sm:landscape:hidden"> — safe behind the glass</span>
+            </div>
+          )}
 
-      {/* bench */}
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-3 pb-6 pt-4 sm:px-5">
-        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(200px,250px)_minmax(0,1fr)] lg:items-start lg:gap-6">
+          {/* banner + clock */}
+          <div className="shrink-0 space-y-2">
+            <div className="flex min-h-[28px] items-center justify-center gap-2.5 sm:landscape:justify-start">
+              {turnPlayer && v.phase === "play" && <OrbChip seat={turnPlayer.seat} size={16} />}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={banner.text}
+                  initial={{ y: 8, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -8, opacity: 0 }}
+                  transition={{ duration: 0.28, ease: SWIFT }}
+                  className={`${chakra.className} text-[15px] font-bold leading-tight tracking-[0.04em] sm:text-[17px] lg:landscape:text-[19px]`}
+                  style={{ color: banner.color, textShadow: `0 0 20px ${banner.color}44` }}
+                >
+                  {banner.text}
+                </motion.span>
+              </AnimatePresence>
+            </div>
+            {v.phase === "play" && v.deadline !== null && (
+              <DeadlineBar deadline={v.deadline} nowEst={nowEst} color={turnColor} label={turnPlayer ? `${turnPlayer.name}'s turn` : "turn clock"} />
+            )}
+          </div>
+
           {/* roster */}
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-1 lg:gap-2">
+          <div className={`grid shrink-0 gap-1.5 ${rosterCols} sm:landscape:-mx-1 sm:landscape:flex sm:landscape:min-h-0 sm:landscape:shrink sm:landscape:flex-col sm:landscape:gap-2 sm:landscape:overflow-y-auto sm:landscape:px-1 sm:landscape:py-1`}>
             {v.players.map((p) => (
               <PlayerCard
                 key={p.id}
@@ -382,12 +478,22 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
                 wins={tallies[p.id] ?? 0}
                 won={v.winner === p.id}
                 share={orbsOnBoard ? p.orbs / orbsOnBoard : 0}
+                dense={dense}
               />
             ))}
           </div>
 
-          <div className="min-w-0">
-            <div className="mx-auto w-full" style={{ maxWidth: `min(100%, 620px, calc(72vh * ${boardAspect.toFixed(4)}))` }}>
+          {interactive && (
+            <p className="mt-auto hidden shrink-0 pt-1 text-[9px] uppercase leading-relaxed tracking-[0.2em] sm:landscape:block" style={{ color: "rgba(138,144,163,0.55)" }}>
+              click a cell · or arrows + enter
+            </p>
+          )}
+        </div>
+
+        {/* the glass */}
+        <div className="my-auto flex shrink-0 flex-col items-center" style={{ width: fit.w || undefined }}>
+          <div style={{ width: fit.w, height: fit.h }}>
+            {fit.w > 0 && (
               <ChainBoardView
                 cols={v.cols}
                 rows={v.rows}
@@ -405,49 +511,43 @@ export function ChainReactionScreen(props: GameScreenProps<ChainView>) {
                 moveKey={moveKey}
                 winnerSeat={v.phase === "over" && !pb.animating ? (winner?.seat ?? null) : null}
               />
-            </div>
+            )}
+          </div>
 
-            {/* log ticker */}
-            <div className="mt-3 flex min-h-[18px] items-center justify-center px-2 text-center">
-              <AnimatePresence mode="wait" initial={false}>
-                {hoverHint ? (
+          {/* log ticker */}
+          <div className="flex w-full items-end justify-center overflow-hidden px-2 text-center" style={{ height: TICKER_H }}>
+            <AnimatePresence mode="wait" initial={false}>
+              {hoverHint ? (
+                <motion.span
+                  key={`hint:${hoverHint}`}
+                  initial={{ y: 6, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -6, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: SWIFT }}
+                  className="truncate text-[11px] uppercase tracking-[0.18em]"
+                  style={{ color: me ? paintFor(me.seat).light : MUTED }}
+                >
+                  {hoverHint}
+                </motion.span>
+              ) : (
+                lastLog && (
                   <motion.span
-                    key={`hint:${hoverHint}`}
+                    key={lastLog.i}
                     initial={{ y: 6, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: -6, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: SWIFT }}
-                    className="text-[11px] uppercase tracking-[0.18em]"
-                    style={{ color: me ? paintFor(me.seat).light : MUTED }}
+                    transition={{ duration: 0.26, ease: SWIFT }}
+                    className="truncate text-[11px] italic"
+                    style={{ color: "rgba(138,144,163,0.95)" }}
                   >
-                    {hoverHint}
+                    {logLine(lastLog)}
                   </motion.span>
-                ) : (
-                  lastLog && (
-                    <motion.span
-                      key={lastLog.i}
-                      initial={{ y: 6, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: -6, opacity: 0 }}
-                      transition={{ duration: 0.26, ease: SWIFT }}
-                      className="text-[11px] italic"
-                      style={{ color: "rgba(138,144,163,0.95)" }}
-                    >
-                      {logLine(lastLog)}
-                    </motion.span>
-                  )
-                )}
-              </AnimatePresence>
-            </div>
-
-            {interactive && (
-              <p className="mt-1 hidden text-center text-[9px] uppercase tracking-[0.2em] lg:block" style={{ color: "rgba(138,144,163,0.55)" }}>
-                click a cell · arrows and enter also work
-              </p>
-            )}
+                )
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </main>
+      </div>
 
       <AnimatePresence>
         {v.phase === "over" && (

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { CardBack } from "./CardArt";
+import { CardBack, CardFace } from "./CardArt";
 import { ACTION_INFO } from "@/lib/games/coup/meta";
 import type { CoupView } from "@/lib/games/coup/types";
 import { ACT_MS, CHOOSE_MS, RESPONSE_MS } from "@/lib/games/coup/types";
@@ -116,7 +116,7 @@ function banner(v: CoupView): { key: string; node: React.ReactNode; tone: "gold"
   };
 }
 
-function Countdown({ deadline, skew, total }: { deadline: number; skew: number; total: number }) {
+function Countdown({ deadline, skew, total, wide }: { deadline: number; skew: number; total: number; wide: boolean }) {
   const [frac, setFrac] = useState(1);
   useEffect(() => {
     const update = () => {
@@ -129,7 +129,7 @@ function Countdown({ deadline, skew, total }: { deadline: number; skew: number; 
   }, [deadline, skew, total]);
   const urgent = frac < 0.28;
   return (
-    <div className="mx-auto mt-3 h-[3px] w-56 overflow-hidden rounded-full bg-ink-600/60 sm:w-72">
+    <div className={`mx-auto mt-3 h-[3px] overflow-hidden rounded-full bg-ink-600/60 ${wide ? "w-80" : "w-56 sm:w-72"}`}>
       <div
         className="h-full rounded-full transition-[width] duration-150 ease-linear"
         style={{
@@ -141,7 +141,24 @@ function Countdown({ deadline, skew, total }: { deadline: number; skew: number; 
   );
 }
 
-export function CenterStage({ v, skew, respondersLeft }: { v: CoupView; skew: number; respondersLeft: string[] }) {
+export function CenterStage({
+  v,
+  skew,
+  respondersLeft,
+  banner: size,
+  deckW,
+  claimW,
+}: {
+  v: CoupView;
+  skew: number;
+  respondersLeft: string[];
+  /** headline size in px, from the table layout */
+  banner: number;
+  /** court-deck card width; 0 hides the art (the count moves into the label) */
+  deckW: number;
+  /** claimed-character card width; 0 when the court has no room for it */
+  claimW: number;
+}) {
   const b = banner(v);
   const p = v.pending;
   const showWaiting =
@@ -151,19 +168,51 @@ export function CenterStage({ v, skew, respondersLeft }: { v: CoupView; skew: nu
   const windowDeadline = !v.lose && p?.stage !== "exchange" ? p?.deadline : undefined;
   const deadline = v.phase === "play" ? (windowDeadline ?? v.actDeadline) : undefined;
   const total = windowDeadline ? RESPONSE_MS : v.lose || p?.stage === "exchange" ? ACT_MS : CHOOSE_MS;
+  const dw = Math.round(Math.max(40, deckW));
+  // the character on trial: the action's claim, or the block's
+  const claim =
+    v.phase === "play" && p && !v.lose
+      ? p.stage === "block_challenge_window"
+        ? p.block?.claim
+        : p.stage === "action_window"
+          ? p.claim
+          : undefined
+      : undefined;
 
   return (
-    <div className="relative flex flex-1 flex-col items-center justify-center py-4 text-center">
+    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-3 py-3 text-center">
       {/* deck */}
-      <div className="pointer-events-none absolute left-1 top-1/2 hidden -translate-y-1/2 flex-col items-center gap-1.5 opacity-80 md:flex">
-        <div className="relative h-[72px] w-[48px]">
-          <CardBack className="absolute left-0 top-0 w-[48px] -rotate-3" />
-          <CardBack className="absolute left-[3px] top-[-3px] w-[48px] rotate-2" />
+      {deckW > 0 && (
+        <div className="pointer-events-none absolute top-1/2 flex -translate-y-1/2 flex-col items-center gap-1.5 opacity-80" style={{ left: 16 }}>
+          <div className="relative" style={{ width: dw, height: dw * 1.5 }}>
+            <CardBack className="absolute left-0 top-0 h-auto w-full -rotate-3" />
+            <CardBack className="absolute left-[3px] top-[-3px] h-auto w-full rotate-2" />
+          </div>
+          <span className="label !text-[9px]">Deck · {v.deckCount}</span>
         </div>
-        <span className="label !text-[9px]">Deck · {v.deckCount}</span>
-      </div>
+      )}
 
-      <div className="label mb-2">The Court</div>
+      <AnimatePresence mode="wait">
+        {claim && claimW > 0 && (
+          <motion.div
+            key={`${claim}-${p?.stage}`}
+            initial={{ opacity: 0, y: -14, rotate: -4, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, rotate: -2, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-3 shrink-0"
+            style={{ width: claimW }}
+            title="The claimed character"
+          >
+            <CardFace ch={claim} className="h-auto w-full drop-shadow-[0_10px_24px_rgba(0,0,0,0.55)]" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="label mb-2">
+        The Court
+        {!deckW && <span className="text-parch-500/70"> · deck {v.deckCount}</span>}
+      </div>
       <AnimatePresence mode="wait">
         <motion.div
           key={b.key}
@@ -171,7 +220,8 @@ export function CenterStage({ v, skew, respondersLeft }: { v: CoupView; skew: nu
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className={`mx-auto max-w-xl px-4 font-display text-xl leading-snug sm:text-2xl ${
+          style={{ fontSize: size, maxWidth: Math.max(320, size * 26) }}
+          className={`mx-auto px-4 font-display leading-snug ${
             b.tone === "gold" ? "gold-text font-bold" : b.tone === "blood" ? "text-blood-300" : "text-parch-300"
           }`}
         >
@@ -179,7 +229,7 @@ export function CenterStage({ v, skew, respondersLeft }: { v: CoupView; skew: nu
         </motion.div>
       </AnimatePresence>
 
-      {deadline && <Countdown deadline={deadline} skew={skew} total={total} />}
+      {deadline && <Countdown deadline={deadline} skew={skew} total={total} wide={size > 26} />}
 
       {showWaiting && (
         <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-parch-500">

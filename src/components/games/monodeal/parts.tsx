@@ -190,17 +190,28 @@ export function RollingTotal({ value, size = 18 }: { value: number; size?: numbe
 
 /* ---------------- opponent ledger row ---------------- */
 
+/** whether an opponent page shows its "deciding… / owes" strip (the screen's
+    fit-to-space layout reserves room for it) */
+export function ledgerStrip(p: MonoPlayerView, view: MonoDealView): boolean {
+  const pending = view.pending;
+  if (!pending || p.left) return false;
+  return (pending.stage === "jsn" && pending.jsnBy === p.id) || (pending.stage === "pay" && pending.target === p.id);
+}
+
 export function OpponentLedger({
   p,
   view,
   now,
   mini = 24,
+  compact = false,
 }: {
   p: MonoPlayerView;
   view: MonoDealView;
   now: number;
-  /** table mini-card width (larger in the desktop grid) */
+  /** table mini-card width — the screen sizes it to the page */
   mini?: number;
+  /** too crowded for cards: show each set as a colour chip instead */
+  compact?: boolean;
 }) {
   const pending = view.pending;
   const isTurn = view.turn === p.id && !view.winner;
@@ -211,7 +222,7 @@ export function OpponentLedger({
 
   return (
     <div
-      className={`relative flex w-full min-w-[150px] max-w-[200px] shrink-0 flex-col gap-1.5 rounded-[5px] px-2.5 py-2 lg:max-w-none ${
+      className={`relative flex h-full w-full min-w-0 flex-col gap-1.5 rounded-[5px] px-2.5 py-2 ${
         p.left ? "opacity-50 grayscale" : ""
       }`}
       style={{
@@ -256,15 +267,20 @@ export function OpponentLedger({
           {p.completed.length >= 2 && <SealMark size={11} />}
         </span>
       </div>
-      <SetGroups p={p} mini={mini} emptyText={p.left ? "left the game" : "no properties filed"} />
-      {groups.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {groups
-            .filter((g) => g.complete)
-            .map((g) => (
-              <SetChip key={g.color} color={g.color} count={g.entries.length} complete />
+      {compact ? (
+        groups.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {groups.map((g) => (
+              <SetChip key={g.color} color={g.color} count={g.entries.length} complete={g.complete} />
             ))}
-        </div>
+          </div>
+        ) : (
+          <span className="px-1 py-1 text-[10px] italic" style={{ color: CHROME_SOFT }}>
+            {p.left ? "left the game" : "no properties filed"}
+          </span>
+        )
+      ) : (
+        <SetGroups p={p} mini={mini} emptyText={p.left ? "left the game" : "no properties filed"} />
       )}
       {(isDecider || mustPay) && pending && !p.left && (
         <div className="flex flex-col gap-0.5">
@@ -286,6 +302,7 @@ export function SetGroups({
   mini = 40,
   emptyText = "No properties on your table yet — file some deeds.",
   still = false,
+  row = false,
 }: {
   p: MonoPlayerView;
   onWildTap?: (cardId: string) => void;
@@ -293,6 +310,8 @@ export function SetGroups({
   emptyText?: string;
   /** render without layoutIds (for overlays, so ids stay unique) */
   still?: boolean;
+  /** one horizontally scrolling row instead of wrapping (keeps the phone dock a fixed height) */
+  row?: boolean;
 }) {
   const groups = groupTable(p);
   if (groups.length === 0)
@@ -302,13 +321,16 @@ export function SetGroups({
       </span>
     );
   return (
-    <div className="flex flex-wrap items-start gap-2.5">
+    <div
+      className={row ? "flex items-start gap-2 overflow-x-auto pb-0.5" : "flex flex-wrap items-start gap-2.5"}
+      style={row ? { scrollbarWidth: "none" } : undefined}
+    >
       {groups.map((g) => {
         const meta = COLOR_META[g.color];
         return (
           <div
             key={g.color}
-            className="relative flex flex-col gap-1 rounded-md p-1.5"
+            className="relative flex shrink-0 flex-col gap-1 rounded-md p-1.5"
             style={{
               background: g.complete ? `${meta.hex}30` : "rgba(240,234,217,0.05)",
               border: `1px solid ${g.complete ? meta.hex : HAIRLINE}`,

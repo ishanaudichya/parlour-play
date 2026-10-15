@@ -42,8 +42,8 @@ export function GameOverCard({
         : `Stacked every card. ${v.board.length} cards in the STACC.`;
   const order = [...v.players].sort((a, b) => (a.id === v.winner ? -1 : b.id === v.winner ? 1 : a.left !== b.left ? (a.left ? 1 : -1) : a.count - b.count));
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, delay: 0.6 }} style={{ background: "rgba(4,10,36,0.6)", backdropFilter: "blur(4px)" }}>
-      <motion.div className="w-full max-w-sm rounded-3xl p-6 text-center" style={PANEL} initial={{ y: 24, scale: 0.94 }} animate={{ y: 0, scale: 1 }} transition={{ delay: 0.7, type: "spring", stiffness: 260, damping: 22 }}>
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-4 pt-16" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, delay: 0.6 }} style={{ background: "rgba(4,10,36,0.6)", backdropFilter: "blur(4px)" }}>
+      <motion.div className="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl p-6 text-center" style={PANEL} initial={{ y: 24, scale: 0.94 }} animate={{ y: 0, scale: 1 }} transition={{ delay: 0.7, type: "spring", stiffness: 260, damping: 22 }}>
         <div className="flex justify-center gap-1">
           {[0, 1, 2].map((i) => (
             <motion.div key={i} initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.85 + i * 0.12, type: "spring", stiffness: 420, damping: 16 }}>

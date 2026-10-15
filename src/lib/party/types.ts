@@ -30,6 +30,15 @@ export interface ActiveGame {
   tallied: boolean;
 }
 
+/** The host's pick on the lobby shelf, shown on every screen. `n` counts
+    picks so a repeated pick (or a spin landing on the same game) still reads
+    as new. */
+export interface Spotlight {
+  game: GameType;
+  spin: boolean;
+  n: number;
+}
+
 export interface PartyState {
   code: string;
   hostId: string;
@@ -40,6 +49,10 @@ export interface PartyState {
   tallies: Partial<Record<GameType, Record<string, number>>>;
   log: PartyLogEntry[];
   logSeq: number;
+  /** absent on parties saved before spotlights existed */
+  spotlight?: Spotlight | null;
+  /** what each member wants to play next (member id → game); cleared on every deal */
+  votes?: Record<string, GameType>;
   version: number;
   createdAt: number;
   updatedAt: number;
@@ -64,6 +77,8 @@ export interface PartyView {
   game: null | { type: GameType; players: string[]; view: unknown };
   tallies: Partial<Record<GameType, Record<string, number>>>;
   log: PartyLogEntry[];
+  spotlight: Spotlight | null;
+  votes: Record<string, GameType>;
   version: number;
   now: number;
 }
@@ -81,6 +96,8 @@ export interface PartyPreview {
 export type PartyMove =
   | { kind: "party"; action: "start_game"; game: GameType }
   | { kind: "party"; action: "end_game" } // host: back to lobby
+  | { kind: "party"; action: "spotlight"; game: GameType | null; spin?: boolean } // host: point at a game
+  | { kind: "party"; action: "vote"; game: GameType | null } // anyone: say what you'd like to play
   | { kind: "party"; action: "leave" }
   | { kind: "game"; move: unknown };
 

@@ -39,24 +39,27 @@ export function GameOverCard({
       ? `Everyone else pulled out — the ridge goes to ${winner!.name}.`
       : `${winner!.name} held the ridge with ${winner!.score} points.`;
   const order = [...v.players].sort((a, b) => (a.left !== b.left ? (a.left ? 1 : -1) : b.score - a.score));
+  // a phone on its side has ~330px under the toolbar: tighter, and a crowd
+  // of three or four goes two-up so the buttons stay on screen
+  const many = v.players.length > 2;
 
   return (
-    <motion.div className="absolute inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, delay: 0.3, ease: SWIFT }} style={{ background: "rgba(6,7,4,0.72)", backdropFilter: "blur(4px)" }}>
+    <motion.div className="absolute inset-0 z-50 flex items-center justify-center p-4 [@media(max-height:520px)]:p-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, delay: 0.3, ease: SWIFT }} style={{ background: "rgba(6,7,4,0.72)", backdropFilter: "blur(4px)" }}>
       <motion.div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl p-5 text-center"
+        className={`relative max-h-full w-full max-w-md overflow-y-auto rounded-2xl p-5 text-center [@media(max-height:520px)]:p-4 ${many ? "[@media(max-height:520px)]:max-w-2xl" : ""}`}
         style={{ background: SURFACE, border: `1px solid ${LINE}`, boxShadow: "0 30px 80px rgba(0,0,0,0.6)" }}
         initial={{ y: 30, scale: 0.94, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
         transition={{ delay: 0.36, type: "spring", stiffness: 240, damping: 24 }}
       >
-        <motion.h2 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45, duration: 0.4, ease: SWIFT }} className={`${stencil.className} relative text-[30px] leading-tight`} style={{ color: accent }}>
+        <motion.h2 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45, duration: 0.4, ease: SWIFT }} className={`${stencil.className} relative text-[30px] leading-tight [@media(max-height:520px)]:text-[24px]`} style={{ color: accent }}>
           {headline}
         </motion.h2>
         <p className="relative mt-1 text-[12.5px]" style={{ color: PAINT_SOFT }}>
           {sub}
         </p>
 
-        <div className="relative mt-4 space-y-1.5 text-left">
+        <div className={`relative mt-4 grid gap-1.5 text-left [@media(max-height:520px)]:mt-3 ${many ? "[@media(max-height:520px)]:grid-cols-2" : ""}`}>
           {order.map((p, i) => {
             const P = TANK[p.color];
             const won = p.id === v.winner;
@@ -104,7 +107,7 @@ export function GameOverCard({
           })}
         </div>
 
-        <div className="relative mt-5 flex flex-wrap justify-center gap-2">
+        <div className="relative mt-5 flex flex-wrap justify-center gap-2 [@media(max-height:520px)]:mt-3">
           {isHost ? (
             <>
               <button type="button" onClick={playAgain} className="rounded-lg px-5 py-2.5 text-[13px] font-semibold transition-transform active:scale-[0.97]" style={{ background: "#d8392b", color: "#fff6ee" }}>

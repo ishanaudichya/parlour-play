@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CardBack, CardFace } from "./CardArt";
 import { CoinCount, Medallion } from "@/components/ui";
 import type { ClientPlayer, CoupView } from "@/lib/games/coup/types";
+import { seatChrome } from "./layout";
 
 export type SeatStatus = "acting" | "deciding" | "allowed" | "blocking" | "surrendering" | "exchanging" | null;
 
@@ -31,6 +32,9 @@ const STATUS_STYLE: Record<Exclude<SeatStatus, null>, { text: string; cls: strin
 
 export function Seat({
   p,
+  width,
+  cardW,
+  phone,
   isTurn,
   wins,
   status,
@@ -39,6 +43,10 @@ export function Seat({
   onTarget,
 }: {
   p: ClientPlayer;
+  /** seat width and opponent card width, from the table layout */
+  width: number;
+  cardW: number;
+  phone: boolean;
   isTurn: boolean;
   wins: number;
   status: SeatStatus;
@@ -47,6 +55,8 @@ export function Seat({
   onTarget?: () => void;
 }) {
   const dead = !p.alive;
+  const c = seatChrome(cardW, phone);
+  const big = cardW > 80;
   return (
     <motion.button
       layout
@@ -55,7 +65,8 @@ export function Seat({
       onClick={onTarget}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative w-[124px] select-none border p-2.5 pt-3 text-left transition-colors sm:w-[142px] rounded-md
+      style={{ width, padding: c.pad, paddingTop: c.pad + 2 }}
+      className={`relative shrink-0 select-none rounded-md border text-left transition-colors
         ${dead ? "border-ink-600/60 opacity-55" : "border-gold-500/25 bg-[#141019]/70"}
         ${isTurn && !dead ? "animate-ring-pulse" : ""}
         ${targetable ? "cursor-pointer animate-target-pulse hover:bg-blood-900/40" : "cursor-default"}
@@ -74,16 +85,20 @@ export function Seat({
         </span>
       )}
 
-      <div className="flex items-center gap-2">
-        <Medallion name={p.name} seat={p.seat} size={30} dim={dead} />
+      <div className="flex items-center" style={{ gap: big ? 10 : 7 }}>
+        <Medallion name={p.name} seat={p.seat} size={c.med} dim={dead} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <span className={`truncate text-[13px] font-semibold ${dead ? "text-parch-500 line-through" : "text-parch-100"}`}>
+            <span
+              className={`truncate font-semibold ${big ? "text-[15px]" : phone ? "text-[12.5px]" : "text-[13px]"} ${
+                dead ? "text-parch-500 line-through" : "text-parch-100"
+              }`}
+            >
               {p.name}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <CoinCount n={p.coins} />
+            <CoinCount n={p.coins} size={big ? "lg" : "md"} />
             {wins > 0 && (
               <span className="text-[10px] font-semibold text-gold-600" title={`${wins} win${wins > 1 ? "s" : ""}`}>
                 ♛{wins}
@@ -93,13 +108,13 @@ export function Seat({
         </div>
       </div>
 
-      <div className="mt-2 flex justify-center gap-1.5">
-        {p.cards.map((c) => (
-          <div key={c.id} className="relative w-[42px] sm:w-[48px]" style={{ perspective: 300 }}>
+      <div className="flex justify-center" style={{ gap: c.gap, marginTop: phone ? 6 : 8 }}>
+        {p.cards.map((card) => (
+          <div key={card.id} className="relative" style={{ width: cardW, perspective: 300 + cardW * 4 }}>
             <motion.div
               className="relative h-full w-full"
               initial={false}
-              animate={{ rotateY: c.revealed ? 180 : 0 }}
+              animate={{ rotateY: card.revealed ? 180 : 0 }}
               transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
               style={{ transformStyle: "preserve-3d" }}
             >
@@ -107,9 +122,9 @@ export function Seat({
                 <CardBack className="h-auto w-full" />
               </div>
               <div className="absolute inset-0" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
-                {c.revealed && c.ch && (
+                {card.revealed && card.ch && (
                   <div className="relative">
-                    <CardFace ch={c.ch} className="h-auto w-full opacity-55 saturate-50" />
+                    <CardFace ch={card.ch} className="h-auto w-full opacity-55 saturate-50" />
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="h-[1.5px] w-[130%] -rotate-45 bg-blood-500/80" />
                     </span>

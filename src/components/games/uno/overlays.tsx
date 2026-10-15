@@ -21,7 +21,7 @@ function hashN(s: string, mod: number): number {
 function Backdrop({ children, onClose, z = "z-40" }: { children: ReactNode; onClose?: () => void; z?: string }) {
   return (
     <motion.div
-      className={`fixed inset-0 ${z} flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm`}
+      className={`fixed inset-0 ${z} flex items-center justify-center bg-black/70 px-4 pb-4 pt-14 backdrop-blur-sm`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -90,42 +90,45 @@ export function DrawnPrompt({
   card,
   onPlay,
   onKeep,
+  showText = true,
 }: {
   card: UnoCard;
   onPlay: () => void;
   onKeep: () => void;
+  /** drop the caption when the row is crowded (phone + UNO pill) */
+  showText?: boolean;
 }) {
+  /* one slim row — it lives in the action row, so it never reflows the table */
   return (
     <motion.div
-      className="mx-auto flex w-fit max-w-full items-center gap-3 rounded-2xl border-[3px] border-white/15 bg-[#1d1d25] py-2 pl-2 pr-3"
-      initial={{ y: 24, opacity: 0 }}
+      className="mx-auto flex w-fit max-w-full items-center gap-2.5 rounded-2xl border-[3px] border-white/15 bg-[#1d1d25] py-1 pl-1.5 pr-1.5"
+      initial={{ y: 16, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 16, opacity: 0 }}
+      exit={{ y: 12, opacity: 0 }}
       transition={{ duration: 0.35, ease: EASE }}
     >
-      <CardFace card={card} w={40} className="shrink-0" />
-      <div className="text-[13px] font-bold leading-snug text-white/85">
-        You drew this —<br />
-        play it now?
-      </div>
-      <div className="flex shrink-0 flex-col gap-1.5">
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.94 }}
-          onClick={onPlay}
-          className="rounded-xl bg-[#66bb6a] px-4 py-1.5 text-[13px] font-extrabold text-[#10241a]"
-        >
-          Play it
-        </motion.button>
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.94 }}
-          onClick={onKeep}
-          className="rounded-xl border-2 border-white/15 px-4 py-1 text-[13px] font-bold text-white/70"
-        >
-          Keep
-        </motion.button>
-      </div>
+      <CardFace card={card} w={24} className="shrink-0" />
+      {showText && (
+        <div className="min-w-0 text-[12px] font-bold leading-tight text-white/85 sm:text-[13px]">
+          You drew this — play it?
+        </div>
+      )}
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.94 }}
+        onClick={onPlay}
+        className="shrink-0 rounded-xl bg-[#66bb6a] px-3.5 py-1.5 text-[13px] font-extrabold text-[#10241a]"
+      >
+        Play it
+      </motion.button>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.94 }}
+        onClick={onKeep}
+        className="shrink-0 rounded-xl border-2 border-white/15 px-3 py-1 text-[13px] font-bold text-white/70"
+      >
+        Keep
+      </motion.button>
     </motion.div>
   );
 }
@@ -242,7 +245,7 @@ export function GameOverOverlay({
     <Backdrop z="z-50">
       <Confetti />
       <motion.div
-        className="relative w-full max-w-sm rounded-3xl border-4 border-white/10 bg-[#1b1b22] p-6 text-center"
+        className="uno-scroll relative max-h-full w-full max-w-sm overflow-y-auto rounded-3xl border-4 border-white/10 bg-[#1b1b22] p-6 text-center"
         initial={{ scale: 0.8, y: 30, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: EASE }}

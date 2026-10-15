@@ -42,9 +42,22 @@ function CrackedSeal() {
   );
 }
 
-function Medallion({ quest, index, current, over }: { quest: AvalonQuest; index: number; current: number; over: boolean }) {
+function Medallion({
+  quest,
+  index,
+  current,
+  over,
+  k,
+}: {
+  quest: AvalonQuest;
+  index: number;
+  current: number;
+  over: boolean;
+  k: number;
+}) {
   const active = !over && index + 1 === current && quest.outcome === "pending";
-  const dia = 46 + quest.size * 5;
+  const dia = Math.round((46 + quest.size * 5) * k);
+  const badge = Math.round(Math.max(20, 20 * Math.sqrt(k)));
   return (
     <div className="flex flex-col items-center gap-1">
       <div
@@ -53,8 +66,10 @@ function Medallion({ quest, index, current, over }: { quest: AvalonQuest; index:
           width: dia,
           height: dia,
           background: "radial-gradient(circle at 34% 28%, #2c3d59, #10192c 72%)",
-          border: `2px solid ${active ? "#8fb8de" : "#3c4f6b"}`,
-          boxShadow: active ? "0 0 22px rgba(143,184,222,.3), inset 0 0 14px rgba(0,0,0,.6)" : "inset 0 0 14px rgba(0,0,0,.6)",
+          border: `${k >= 1.3 ? 3 : 2}px solid ${active ? "#8fb8de" : "#3c4f6b"}`,
+          boxShadow: active
+            ? `0 0 ${Math.round(22 * k)}px rgba(143,184,222,.3), inset 0 0 14px rgba(0,0,0,.6)`
+            : "inset 0 0 14px rgba(0,0,0,.6)",
         }}
         aria-label={`Quest ${index + 1}: party of ${quest.size}${quest.failsRequired === 2 ? ", two fails required" : ""}${
           quest.outcome !== "pending" ? `, ${quest.outcome}` : ""
@@ -65,7 +80,8 @@ function Medallion({ quest, index, current, over }: { quest: AvalonQuest; index:
         </span>
         {quest.failsRequired === 2 ? (
           <span
-            className={`${uncial.className} absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full border border-[#d6c389]/70 bg-[#1a2438] text-[9px] text-[#d6c389]`}
+            className={`${uncial.className} absolute -right-1 -top-1 grid place-items-center rounded-full border border-[#d6c389]/70 bg-[#1a2438] text-[#d6c389]`}
+            style={{ width: badge, height: badge, fontSize: badge * 0.45 }}
             title="This quest fails only on two Fail cards"
           >
             II
@@ -84,7 +100,9 @@ function Medallion({ quest, index, current, over }: { quest: AvalonQuest; index:
           ) : null}
         </AnimatePresence>
       </div>
-      <div className="h-3 text-[8px] uppercase tracking-[0.14em] text-[#5f7189] tabular-nums">
+      <div
+        className={`h-3 uppercase tracking-[0.14em] text-[#5f7189] tabular-nums ${k >= 1.3 ? "text-[10px]" : "text-[9px]"}`}
+      >
         {quest.outcome === "fail"
           ? `${quest.fails} fail${quest.fails === 1 ? "" : "s"}`
           : quest.outcome === "success" && quest.fails > 0
@@ -95,52 +113,86 @@ function Medallion({ quest, index, current, over }: { quest: AvalonQuest; index:
   );
 }
 
+/** Sum of the medallion diameters at k = 1 — the board fits its row to this. */
+export const questRowWidth = (quests: AvalonQuest[]) => quests.reduce((s, q) => s + 46 + q.size * 5, 0);
+
+/** The board's rendered height at size factor k: borders and padding, the
+    tallest medallion, its fail label and the refusal row. */
+export function questBoardHeight(quests: AvalonQuest[], k: number) {
+  const pad = Math.round(10 * Math.min(k, 1.6)) + Math.round(8 * Math.min(k, 1.6));
+  const dia = Math.max(...quests.map((q) => Math.round((46 + q.size * 5) * k)));
+  const token = Math.round(Math.max(18, Math.min(26, 18 * k)));
+  return 2 + pad + dia + 4 + 12 + 4 + token;
+}
+
+/** The largest size factor whose board fits `w` × `h` (and the k range). */
+export function fitQuestBoard(quests: AvalonQuest[], w: number, h: number, lo = 0.62, hi = 2.4) {
+  if (!w || !h) return 1;
+  let k = lo;
+  for (let t = hi; t >= lo; t -= 0.02) {
+    const gaps = 4 * Math.round(10 * Math.min(t, 1.8));
+    if (questRowWidth(quests) * t + gaps + 26 <= w && questBoardHeight(quests, t) <= h) {
+      k = t;
+      break;
+    }
+  }
+  return k;
+}
+
 export function QuestBoard({
   quests,
   current,
   rejects,
   over,
+  k = 1,
 }: {
   quests: AvalonQuest[];
   current: number;
   rejects: number;
   over: boolean;
+  /** size factor — the screen fits the board to the space it has */
+  k?: number;
 }) {
+  const token = Math.round(Math.max(18, Math.min(26, 18 * k)));
+  const label = k >= 1.3 ? "text-[10px]" : "text-[9px]";
   return (
     <section
-      className="relative border border-[#3c4f6b]/50 bg-[#0d1526]/70 px-3 pb-2.5 pt-3"
+      className="relative shrink-0 border border-[#3c4f6b]/50 bg-[#0d1526]/70 px-3"
+      style={{ paddingTop: Math.round(10 * Math.min(k, 1.6)), paddingBottom: Math.round(8 * Math.min(k, 1.6)) }}
       aria-label="Quest board"
     >
-      <div className="flex items-end justify-center gap-2.5 sm:gap-4">
+      <div className="flex items-end justify-center" style={{ gap: Math.round(10 * Math.min(k, 1.8)) }}>
         {quests.map((q, i) => (
-          <Medallion key={i} quest={q} index={i} current={current} over={over} />
+          <Medallion key={i} quest={q} index={i} current={current} over={over} k={k} />
         ))}
       </div>
       <div className="mt-1 flex items-center justify-center gap-2">
-        <span className="text-[8px] uppercase tracking-[0.22em] text-[#5f7189]">Refusals</span>
+        <span className={`${label} uppercase tracking-[0.22em] text-[#5f7189]`}>Refusals</span>
         <div className="flex items-center gap-1.5" aria-label={`${rejects} of 5 rejections`}>
           {[0, 1, 2, 3, 4].map((i) => {
             const filled = i < rejects;
             return (
               <span
                 key={i}
-                className="grid h-[18px] w-[18px] place-items-center rounded-full border transition-colors duration-300"
+                className="grid place-items-center rounded-full border transition-colors duration-300"
                 style={{
+                  width: token,
+                  height: token,
                   borderColor: filled ? "#e0556d" : "#3c4f6b",
                   background: filled ? "radial-gradient(circle at 35% 30%, #7e2231, #3a1020)" : "rgba(13,21,38,.8)",
                   boxShadow: filled ? "0 0 10px rgba(224,85,109,.35)" : "none",
                 }}
               >
                 {i === 4 ? (
-                  <Icons.skull size={10} className={filled ? "text-[#e0556d]" : "text-[#3c4f6b]"} />
+                  <Icons.skull size={Math.round(token * 0.56)} className={filled ? "text-[#e0556d]" : "text-[#3c4f6b]"} />
                 ) : filled ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#e0556d]" />
+                  <span className="rounded-full bg-[#e0556d]" style={{ width: token * 0.33, height: token * 0.33 }} />
                 ) : null}
               </span>
             );
           })}
         </div>
-        <span className="text-[8px] uppercase tracking-[0.22em] text-[#5f7189] tabular-nums">{rejects}/5</span>
+        <span className={`${label} uppercase tracking-[0.22em] text-[#5f7189] tabular-nums`}>{rejects}/5</span>
       </div>
     </section>
   );

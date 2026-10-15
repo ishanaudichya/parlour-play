@@ -22,8 +22,14 @@ export function CoupPoster() {
         </div>
       </div>
       <span
-        className="font-black tracking-[0.3em] text-transparent [background:linear-gradient(180deg,#f6e9c8,#dcb975_45%,#9a7a41)] bg-clip-text"
-        style={{ fontFamily: "var(--font-cinzel), serif", fontSize: 22 }}
+        className="font-black tracking-[0.3em] text-transparent"
+        style={{
+          fontFamily: "var(--font-cinzel), serif",
+          fontSize: 22,
+          backgroundImage: "linear-gradient(180deg,#f6e9c8,#dcb975 45%,#9a7a41)",
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+        }}
       >
         COUP
       </span>

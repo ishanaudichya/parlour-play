@@ -6,11 +6,14 @@
    mounted/unmounted by the screen based on log timestamps. */
 
 import { motion } from "framer-motion";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { Button, Icons, Modal } from "@/components/ui";
 import { FACTION_META, ROLE_META } from "@/lib/games/avalon/meta";
 import type { AvalonProposal, AvalonQuest, AvalonView, AvalonViewPlayer } from "@/lib/games/avalon/types";
 import { uncial } from "./font";
 import { CardBack, RoleCard } from "./RoleCard";
+import { useBox } from "@/lib/client/useBox";
+import { fitReveal } from "../reveal";
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 export const ROMAN = ["I", "II", "III", "IV", "V"] as const;
@@ -261,23 +264,36 @@ export function GameOverOverlay({
   const evil = entries.filter((e) => e.faction === "evil");
   const anyTallies = Object.values(tallies).some((w) => w > 0);
 
+  // the whole reveal fits the screen: the card zone is measured, everything
+  // else in the panel is "chrome", and the cards take what the area has left
+  const [areaRef, area] = useBox<HTMLDivElement>();
+  const [panelRef, panel] = useBox<HTMLDivElement>("border");
+  const [zoneRef, zone] = useBox<HTMLDivElement>();
+  const padY = area.w >= 600 ? 20 : 12;
+  const fit = fitReveal(zone.w, area.h - padY * 2 - (panel.h - zone.h) - 4, [good.length, evil.length], {
+    maxW: 168,
+    minW: 46,
+  });
+  const cardW = fit.w;
+
   const group = (label: string, color: string, list: typeof entries, offset: number) => (
-    <div>
-      <div className="mb-2 text-center text-[9px] uppercase tracking-[0.3em]" style={{ color }}>
+    <div className="min-w-0 flex-1">
+      <div className="mb-2 text-center text-[9px] uppercase tracking-[0.3em] sm:text-[10px]" style={{ color }}>
         {label}
         {view.winner && FACTION_META[view.winner].title === label ? " · victorious" : ""}
       </div>
-      <div className="flex flex-wrap items-start justify-center gap-3">
+      <div className="flex flex-wrap items-start justify-center" style={{ gap: fit.gap }}>
         {list.map((e, i) => (
           <motion.div
             key={e.player.id}
-            className="flex w-[88px] flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1"
+            style={{ width: cardW + 4 }}
             initial={reduce ? false : { rotateY: 120, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
             transition={{ delay: reduce ? 0 : 0.3 + (offset + i) * 0.12, duration: 0.45, ease: EASE }}
           >
             <div className="relative">
-              <RoleCard role={e.role} variant={e.variant} w={84} />
+              <RoleCard role={e.role} variant={e.variant} w={cardW} />
               {view.assassinTarget === e.player.id ? (
                 <span
                   className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full border border-[#e0556d] bg-[#3a1020] text-[#e0556d]"
@@ -287,7 +303,7 @@ export function GameOverOverlay({
                 </span>
               ) : null}
             </div>
-            <span className="w-full truncate text-center text-[10px] text-[#b9c6d8]">
+            <span className={`w-full truncate text-center text-[#b9c6d8] ${cardW >= 100 ? "text-[12px]" : "text-[10px]"}`}>
               {e.player.name}
               {e.player.id === youId ? " (you)" : ""}
               {e.player.left ? " · left" : ""}
@@ -300,72 +316,88 @@ export function GameOverOverlay({
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 overflow-y-auto bg-[#05080f]/94 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-40 flex flex-col bg-[#05080f]/94 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <motion.div
-        className="mx-auto my-6 w-full max-w-2xl border border-[#55627a]/60 bg-[#0d1526]/90 p-5 text-center sm:p-8"
-        initial={{ y: 24, scale: 0.98, opacity: 0 }}
-        animate={{ y: 0, scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4, ease: EASE }}
-      >
-        <div className="text-[9px] uppercase tracking-[0.34em] text-[#7d94ad]">
-          {youWon ? "Your cause triumphs" : "The tale is told"}
+      {/* the overlay covers the toolbar, so it carries the Parlour menu itself */}
+      <div className="shrink-0 border-b border-[#3c4f6b]/30">
+        <div className="mx-auto flex w-full max-w-[1680px] items-center justify-between px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] sm:px-6">
+          <span className={`${uncial.className} text-base tracking-[0.16em] text-[#dfe8f2] sm:tracking-[0.3em]`}>AVALON</span>
+          <PartyMenu style={{ borderRadius: 0, borderColor: "rgba(60,79,107,.5)", color: "#9db1c7" }} />
         </div>
-        <h2
-          className={`${uncial.className} mt-2 text-2xl sm:text-3xl`}
-          style={{ color: view.winner === "evil" ? "#e0556d" : "#cfe4f7" }}
-        >
-          {banner.title}
-        </h2>
-        {banner.sub ? <p className="mt-2 text-xs text-[#7d94ad]">{banner.sub}</p> : null}
-        {view.winBy === "assassination" && view.assassinTarget ? (
-          <p className="mt-1 text-[11px] text-[#5f7189]">
-            The dagger fell upon {nameOf(view.players, view.assassinTarget)}.
-          </p>
-        ) : null}
-
-        <div className="my-5 h-px bg-gradient-to-r from-transparent via-[#55627a]/70 to-transparent" />
-        <div className="space-y-5">
-          {group(FACTION_META.good.title, "#8fb8de", good, 0)}
-          {group(FACTION_META.evil.title, "#e0556d", evil, good.length)}
-        </div>
-
-        {anyTallies ? (
-          <div className="mt-6 border-t border-[#55627a]/40 pt-4 text-left">
-            <div className="text-[9px] uppercase tracking-[0.3em] text-[#7d94ad]">Avalon victories</div>
-            <div className="mt-2 space-y-1.5">
-              {view.players
-                .map((p) => ({ p, wins: tallies[p.id] ?? 0 }))
-                .sort((a, b) => b.wins - a.wins)
-                .map(({ p, wins }) => (
-                  <div key={p.id} className="flex justify-between text-xs text-[#7d94ad] tabular-nums">
-                    <span>{p.name}</span>
-                    <span className="text-[#d6c389]">★ {wins}</span>
-                  </div>
-                ))}
+      </div>
+      <div ref={areaRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-3 sm:px-4">
+        <div className="flex min-h-full items-center justify-center" style={{ paddingBlock: padY }}>
+          <motion.div
+            ref={panelRef}
+            className="w-full max-w-[1120px] border border-[#55627a]/60 bg-[#0d1526]/90 p-4 text-center sm:p-8"
+            initial={{ y: 24, scale: 0.98, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          >
+            <div className="text-[9px] uppercase tracking-[0.34em] text-[#7d94ad]">
+              {youWon ? "Your cause triumphs" : "The tale is told"}
             </div>
-          </div>
-        ) : null}
+            <h2
+              className={`${uncial.className} mt-2 text-2xl leading-tight sm:text-3xl xl:text-4xl`}
+              style={{ color: view.winner === "evil" ? "#e0556d" : "#cfe4f7" }}
+            >
+              {banner.title}
+            </h2>
+            {banner.sub ? <p className="mt-2 text-xs text-[#7d94ad] sm:text-[13px]">{banner.sub}</p> : null}
+            {view.winBy === "assassination" && view.assassinTarget ? (
+              <p className="mt-1 text-[11px] text-[#5f7189] sm:text-xs">
+                The dagger fell upon {nameOf(view.players, view.assassinTarget)}.
+              </p>
+            ) : null}
 
-        <div className="my-6 h-px bg-gradient-to-r from-transparent via-[#55627a]/70 to-transparent" />
-        {isHost ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button variant="primary" onClick={playAgain} className="sm:min-w-44">
-              Ride again
-            </Button>
-            <Button variant="outline" onClick={exitToLobby} className="sm:min-w-44">
-              Back to lobby
-            </Button>
-          </div>
-        ) : (
-          <div className="border border-dashed border-[#55627a]/50 px-4 py-3 text-xs text-[#7d94ad]">
-            Waiting for the host…
-          </div>
-        )}
-      </motion.div>
+            <div className="my-4 h-px bg-gradient-to-r from-transparent via-[#55627a]/70 to-transparent sm:my-5" />
+            <div
+              ref={zoneRef}
+              className={fit.side ? "flex items-start" : "space-y-4"}
+              style={fit.side ? { gap: fit.split } : undefined}
+            >
+              {group(FACTION_META.good.title, "#8fb8de", good, 0)}
+              {fit.side ? <div className="w-px self-stretch bg-gradient-to-b from-transparent via-[#55627a]/60 to-transparent" /> : null}
+              {group(FACTION_META.evil.title, "#e0556d", evil, good.length)}
+            </div>
+
+            {anyTallies ? (
+              <div className="mt-5 border-t border-[#55627a]/40 pt-3 sm:mt-6">
+                <div className="text-[9px] uppercase tracking-[0.3em] text-[#7d94ad]">Avalon victories</div>
+                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                  {view.players
+                    .map((p) => ({ p, wins: tallies[p.id] ?? 0 }))
+                    .sort((a, b) => b.wins - a.wins)
+                    .map(({ p, wins }) => (
+                      <span key={p.id} className="text-xs text-[#7d94ad] tabular-nums">
+                        {p.name} <span className="text-[#d6c389]">★ {wins}</span>
+                      </span>
+                    ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="my-4 h-px bg-gradient-to-r from-transparent via-[#55627a]/70 to-transparent sm:my-5" />
+            {isHost ? (
+              <div className="flex flex-row justify-center gap-2">
+                <Button variant="primary" onClick={playAgain} className="flex-1 sm:min-w-44 sm:flex-none">
+                  Ride again
+                </Button>
+                <Button variant="outline" onClick={exitToLobby} className="flex-1 sm:min-w-44 sm:flex-none">
+                  Back to lobby
+                </Button>
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#55627a]/50 px-4 py-3 text-xs text-[#7d94ad]">
+                Waiting for the host…
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </div>
     </motion.div>
   );
 }

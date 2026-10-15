@@ -7,6 +7,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { getMutedServerSnapshot, getMutedSnapshot, primeSound, setMuted, subscribeMuted } from "@/lib/client/synthCore";
 import { LINE_MS, MAX_SIDE, MIN_SIDE, SETUP_MS, type DotsMove, type DotsView, type Orient } from "@/lib/games/dots/types";
 import type { GameScreenProps } from "@/lib/party/types";
@@ -15,6 +16,7 @@ import { GameOverCard, DotsRulesModal } from "./Overlays";
 import { Page, pageAspect } from "./Page";
 import { DESK, inkOf, LINE, PAPER, PAPER_EDGE, SURFACE, SWIFT, TEXT, TEXT_2, TEXT_3 } from "./palette";
 import { dotsSfx } from "./sfx";
+import { useBoxSize } from "@/lib/client/useBox";
 
 const PRESETS: { label: string; w: number; h: number }[] = [
   { label: "Quick", w: 3, h: 3 },
@@ -57,11 +59,43 @@ function Stepper({ label, value, onChange, disabled }: { label: string; value: n
   );
 }
 
-/** The notebook: paper, spiral binding, the page inside. Sized to fit the room it's given. */
-function Notebook({ w, h, children, maxH }: { w: number; h: number; children: React.ReactNode; maxH: string }) {
+/** Room kept above the page for the spiral binding, which overhangs the paper. */
+const BINDING = 14;
+/** Setup controls column, when it sits beside the preview. */
+const CONTROLS_W = 360;
+const CONTROLS_GAP = 48;
+/** Rough height of the setup controls when they sit under the preview. */
+const CONTROLS_STACKED_H = 230;
+/** The "tap between two dots" line under the page in play. */
+const HINT_H = 28;
+
+/** The notebook: paper, spiral binding, the page inside. It fills the
+    nearest size container (`containerType: "size"`), keeping the page's shape. */
+function Notebook({
+  w,
+  h,
+  width,
+  reserve = 0,
+  children,
+}: {
+  w: number;
+  h: number;
+  /** explicit width, px; otherwise it fills its size container */
+  width?: number;
+  /** px of the container kept for something under the page */
+  reserve?: number;
+  children: React.ReactNode;
+}) {
   const aspect = pageAspect(w, h);
   return (
-    <div className="relative mx-auto" style={{ width: `min(100%, calc(${maxH} * ${aspect}))`, aspectRatio: `${aspect}` }}>
+    <div
+      className={`relative shrink-0 ${width === undefined ? "mx-auto" : ""}`}
+      style={{
+        width: width ?? `min(100cqw, (100cqh - ${BINDING + reserve}px) * ${aspect.toFixed(4)}, 1100px)`,
+        aspectRatio: `${aspect}`,
+        marginTop: BINDING / 2,
+      }}
+    >
       <div className="absolute inset-0 rounded-[6px]" style={{ background: PAPER, boxShadow: `0 1px 0 ${PAPER_EDGE}, 0 2px 0 #d9cfb6, 0 3px 0 ${PAPER_EDGE}, 0 24px 60px rgba(0,0,0,0.55)` }} />
       {/* spiral binding */}
       <div className="pointer-events-none absolute inset-x-[4%] -top-[10px] flex justify-between" aria-hidden>
@@ -161,31 +195,49 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
   const accent = turnPlayer && v.phase === "play" ? inkOf(turnPlayer.seat) : TEXT;
   const claimed = v.boxes.filter((b) => b >= 0).length;
 
+  // setup on a landscape screen: preview and controls side by side, centred as one group
+  const [stageRef, stage] = useBoxSize();
+  // (whichever arrangement gives the bigger page — a wide page on a 4:3 screen stacks)
+  const previewAspect = pageAspect(size.w, size.h);
+  const previewW = stage
+    ? Math.floor(Math.min(stage.w - CONTROLS_W - CONTROLS_GAP, (stage.h - BINDING) * previewAspect, 1100))
+    : 0;
+  const stackedW = stage ? Math.min(stage.w, (stage.h - CONTROLS_STACKED_H - BINDING) * previewAspect, 1100) : 0;
+  const setupRow = !!stage && stage.w >= 900 && previewW >= stackedW;
+
+  const toolbarBtn = "flex h-9 items-center rounded-lg px-2.5 text-[12px] transition-colors hover:bg-white/5 sm:px-3";
+
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      className="relative flex h-dvh flex-col overflow-hidden"
       style={{ background: `radial-gradient(70% 55% at 50% 30%, #3a3029 0%, ${DESK} 70%)`, color: TEXT }}
       onPointerDown={primeSound}
     >
-      <header className="flex items-center justify-between gap-3 px-3 pt-3 sm:px-5">
+      {/* toolbar — stays above the final tally so the Parlour menu is always in reach */}
+      <header className="relative z-[55] flex h-14 shrink-0 items-center justify-between gap-3 px-3 sm:h-16 sm:px-5">
         <div className="min-w-0">
-          <h1 className={`${hand.className} text-[24px] font-bold leading-none sm:text-[28px]`}>Dots and Boxes</h1>
-          <div className="mt-1 text-[11px]" style={{ color: TEXT_3 }}>
+          <h1 className={`${hand.className} truncate text-[19px] font-bold leading-none min-[380px]:text-[21px] min-[400px]:text-[24px] sm:text-[28px]`}>Dots and Boxes</h1>
+          <div className="mt-1 truncate text-[11px]" style={{ color: TEXT_3 }}>
+            {spectating ? "Watching · " : ""}
             {v.phase === "setup" ? "New page" : `${v.w} × ${v.h} boxes · ${claimed}/${total} claimed`}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? "Unmute" : "Mute"} className="h-9 rounded-lg px-3 text-[12px]" style={{ border: `1px solid ${LINE}`, color: muted ? TEXT_3 : TEXT_2 }}>
-            {muted ? "Sound off" : "Sound on"}
+          <button type="button" onClick={() => setMuted(!muted)} aria-label={muted ? "Unmute" : "Mute"} className={toolbarBtn} style={{ border: `1px solid ${LINE}`, color: muted ? TEXT_3 : TEXT_2 }}>
+            <span className="hidden sm:inline">{muted ? "Sound off" : "Sound on"}</span>
+            <span className={`text-[14px] sm:hidden ${muted ? "line-through" : ""}`} aria-hidden>
+              ♪
+            </span>
           </button>
-          <button type="button" onClick={() => setRulesOpen(true)} className="h-9 rounded-lg px-3 text-[12px] font-medium" style={{ border: `1px solid ${LINE}`, color: TEXT_2 }}>
+          <button type="button" onClick={() => setRulesOpen(true)} className={`${toolbarBtn} font-medium`} style={{ border: `1px solid ${LINE}`, color: TEXT_2 }}>
             Rules
           </button>
+          <PartyMenu style={{ height: 36, borderRadius: 8, color: TEXT_2, borderColor: LINE }} />
         </div>
       </header>
 
       {/* the pens */}
-      <div className="mt-3 flex flex-wrap justify-center gap-2 px-3">
+      <div className="flex shrink-0 flex-wrap justify-center gap-1.5 px-3 sm:gap-2">
         {v.players.map((p) => {
           const ink = inkOf(p.seat);
           const on = v.phase === "play" && v.turn === p.id;
@@ -193,11 +245,11 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
             <motion.div
               key={p.id}
               layout
-              className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+              className="flex items-center gap-2 rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5"
               style={{ background: on ? `${ink}26` : SURFACE, border: `1px solid ${on ? ink : LINE}`, opacity: p.left ? 0.4 : 1, transition: "background 200ms, border-color 200ms" }}
             >
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: ink }} />
-              <span className={`max-w-[110px] truncate text-[13px] font-semibold ${p.left ? "line-through" : ""}`}>
+              <span className={`max-w-[96px] truncate text-[13px] font-semibold sm:max-w-[130px] ${p.left ? "line-through" : ""}`}>
                 {p.name}
                 {p.id === youId ? <span style={{ color: TEXT_3 }}> · you</span> : null}
               </span>
@@ -216,10 +268,10 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
         })}
       </div>
 
-      {/* banner + clock */}
-      <div className="mt-3 flex flex-col items-center px-3">
+      {/* banner + clock — fixed height, so the page never jumps */}
+      <div className="flex h-[46px] shrink-0 flex-col items-center justify-center px-3">
         <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={banner} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18, ease: SWIFT }} className={`${hand.className} text-[20px] font-bold leading-none`} style={{ color: accent }}>
+          <motion.div key={banner} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18, ease: SWIFT }} className={`${hand.className} text-[20px] font-bold leading-none sm:text-[22px]`} style={{ color: accent }}>
             {banner}
           </motion.div>
         </AnimatePresence>
@@ -230,15 +282,25 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
         )}
       </div>
 
-      <main className="flex flex-1 flex-col items-center px-3 pb-6 pt-6 sm:px-6">
+      <main ref={stageRef} className="flex min-h-0 flex-1 flex-col px-3 pb-3 sm:px-6 sm:pb-4">
         {v.phase === "setup" ? (
-          <>
-            <div className="w-full max-w-3xl">
-              <Notebook w={size.w} h={size.h} maxH="min(44dvh, 560px)">
+          /* the preview takes the room; the controls sit beside it on a landscape screen, under it otherwise */
+          <div
+            className={`flex min-h-0 flex-1 ${setupRow ? "flex-row items-center justify-center" : "flex-col gap-4"}`}
+            style={setupRow ? { gap: CONTROLS_GAP } : undefined}
+          >
+            {setupRow ? (
+              <Notebook w={size.w} h={size.h} width={previewW}>
                 <Page w={size.w} h={size.h} hLines={[]} vLines={[]} boxes={[]} initials={initials} last={null} drawAs={null} />
               </Notebook>
-            </div>
-            <div className="mt-6 flex w-full max-w-xl flex-col items-center gap-4">
+            ) : (
+              <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center" style={{ containerType: "size" }}>
+                <Notebook w={size.w} h={size.h}>
+                  <Page w={size.w} h={size.h} hLines={[]} vLines={[]} boxes={[]} initials={initials} last={null} drawAs={null} />
+                </Notebook>
+              </div>
+            )}
+            <div className="flex shrink-0 flex-col items-center gap-3 sm:gap-4" style={setupRow ? { width: CONTROLS_W } : undefined}>
               <div className="flex items-end justify-center gap-8">
                 <Stepper label="Across" value={size.w} disabled={!iChoose} onChange={(w) => setSize(w, size.h)} />
                 <span className={`${hand.className} pb-2 text-[22px]`} style={{ color: TEXT_3 }}>
@@ -246,7 +308,7 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
                 </span>
                 <Stepper label="Down" value={size.h} disabled={!iChoose} onChange={(h) => setSize(size.w, h)} />
               </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
+              <div className="flex max-w-xl flex-wrap justify-center gap-1.5">
                 {PRESETS.map((p) => {
                   const on = p.w === size.w && p.h === size.h;
                   return (
@@ -280,15 +342,16 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
                   Open the page
                 </motion.button>
               ) : (
-                <div className="text-[13px]" style={{ color: TEXT_2 }}>
+                <div className="text-center text-[13px]" style={{ color: TEXT_2 }}>
                   Waiting for {chooser?.name ?? "the host"} to open the page…
                 </div>
               )}
             </div>
-          </>
+          </div>
         ) : (
-          <div className="w-full max-w-4xl">
-            <Notebook w={v.w} h={v.h} maxH="calc(100dvh - 250px)">
+          /* the page and its hint, centred together so the hint stays under the paper */
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center" style={{ containerType: "size" }}>
+            <Notebook w={v.w} h={v.h} reserve={HINT_H}>
               <Page
                 w={v.w}
                 h={v.h}
@@ -301,11 +364,15 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
                 onLine={(o: Orient, r: number, c: number) => send({ type: "line", o, r, c })}
               />
             </Notebook>
-            {myTurn && (
-              <p className="mt-4 text-center text-[12px]" style={{ color: TEXT_3 }}>
-                Tap between two dots to draw a line. Close a box and you go again.
-              </p>
-            )}
+            {/* reserved, so the page doesn't resize when it becomes your turn */}
+            <p className="flex shrink-0 items-end justify-center text-center text-[12px]" style={{ color: TEXT_3, height: HINT_H }}>
+              {myTurn && (
+                <>
+                  <span className="sm:hidden">Tap between two dots · close a box, go again</span>
+                  <span className="hidden sm:inline">Tap between two dots to draw a line. Close a box and you go again.</span>
+                </>
+              )}
+            </p>
           </div>
         )}
       </main>

@@ -19,12 +19,17 @@ export interface ChipFx {
   uno: UnoLogEntry | null;
 }
 
+/** Natural size of an opponent chip at zoom 1 (the layout scales it). */
+export const CHIP_W = 88;
+export const CHIP_H = 125;
+
 export function OpponentChip({
   p,
   isTurn,
   turnPct,
   activeHex,
   fx,
+  scale = 1,
 }: {
   p: UnoViewPlayer;
   isTurn: boolean;
@@ -32,6 +37,8 @@ export function OpponentChip({
   turnPct: number;
   activeHex: string;
   fx: ChipFx;
+  /** uniform zoom — the screen sizes chips to the space it has */
+  scale?: number;
 }) {
   const fan = Math.min(3, Math.max(1, p.cardCount));
   return (
@@ -40,6 +47,7 @@ export function OpponentChip({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: EASE }}
       className="relative w-[88px] shrink-0"
+      style={{ zoom: scale }}
     >
       <div
         className="relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border-[3px] bg-[#1c1c23] px-1.5 pb-2 pt-2 transition-[border-color,box-shadow,opacity,filter] duration-300"
@@ -73,9 +81,9 @@ export function OpponentChip({
               );
             })}
         </div>
-        {/* their turn countdown sliver */}
-        {isTurn && (
-          <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+        {/* their turn countdown sliver (space always reserved so chips never jump) */}
+        <div className={`h-[3px] w-full overflow-hidden rounded-full ${isTurn ? "bg-white/10" : ""}`}>
+          {isTurn && (
             <div
               className="h-full rounded-full"
               style={{
@@ -84,8 +92,8 @@ export function OpponentChip({
                 transition: "width .2s linear",
               }}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* card count badge */}
@@ -192,11 +200,17 @@ export function DrawPile({
       )}
       <CardBack w={w} className="absolute left-0 top-2" style={{ transform: "rotate(-5deg)" }} />
       <CardBack w={w} className="absolute left-2 top-0" style={{ transform: "rotate(2deg)" }} />
-      <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white/15 bg-[#1c1c23] px-2 py-px text-[11px] font-bold tabular-nums text-white/80">
+      <span
+        className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-white/15 bg-[#1c1c23] px-2 py-px font-bold tabular-nums text-white/80"
+        style={{ fontSize: Math.max(11, Math.round(w * 0.11)) }}
+      >
         {count}
       </span>
       {canDraw && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-2 py-px text-[9px] font-extrabold tracking-wider text-[#141418]">
+        <span
+          className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-2 py-px font-extrabold tracking-wider text-[#141418]"
+          style={{ fontSize: Math.max(9, Math.round(w * 0.085)) }}
+        >
           DRAW
         </span>
       )}
@@ -225,13 +239,13 @@ export function DiscardStack({
       {/* active color glow */}
       <div
         className="pointer-events-none absolute inset-2 rounded-2xl transition-shadow duration-500"
-        style={{ boxShadow: `0 0 44px 12px ${hex}66` }}
+        style={{ boxShadow: `0 0 ${Math.round(w * 0.55)}px ${Math.round(w * 0.15)}px ${hex}66` }}
       />
       {/* color-change ripple */}
       <motion.div
         key={`ripple-${activeColor}-${top.id}`}
-        className="pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: hex }}
+        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ background: hex, width: w * 0.8, height: w * 0.8 }}
         initial={{ scale: 0.2, opacity: 0.55 }}
         animate={{ scale: 3.4, opacity: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
@@ -259,11 +273,13 @@ export function DiscardStack({
   );
 }
 
-export function DirectionRing({ direction, hex }: { direction: 1 | -1; hex: string }) {
+export function DirectionRing({ direction, hex, size = 44 }: { direction: 1 | -1; hex: string; size?: number }) {
   return (
     <div
-      className="h-11 w-11"
+      className="shrink-0"
       style={{
+        width: size,
+        height: size,
         animation: "uno-rot 7s linear infinite",
         animationDirection: direction === 1 ? "normal" : "reverse",
       }}
@@ -276,7 +292,7 @@ export function DirectionRing({ direction, hex }: { direction: 1 | -1; hex: stri
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.55, ease: EASE }}
       >
-        <svg viewBox="-26 -26 52 52" width={44} height={44}>
+        <svg viewBox="-26 -26 52 52" width={size} height={size}>
           <path d="M -17 -7 A 18 18 0 0 1 15 -10" fill="none" stroke={hex} strokeWidth={5} strokeLinecap="round" />
           <polygon points="10,-20 24,-8 8,-2" fill={hex} />
           <path d="M 17 7 A 18 18 0 0 1 -15 10" fill="none" stroke={hex} strokeWidth={5} strokeLinecap="round" />
@@ -288,12 +304,22 @@ export function DirectionRing({ direction, hex }: { direction: 1 | -1; hex: stri
 }
 
 /** Countdown bar for the current turn. */
-export function TurnClock({ deadline, serverNow, hex }: { deadline: number; serverNow: number; hex: string }) {
+export function TurnClock({
+  deadline,
+  serverNow,
+  hex,
+  width = 224,
+}: {
+  deadline: number;
+  serverNow: number;
+  hex: string;
+  width?: number;
+}) {
   const remaining = Math.max(0, Math.min(UNO_TURN_MS, deadline - serverNow));
   const pct = remaining / UNO_TURN_MS;
   const danger = remaining < 10_000;
   return (
-    <div className="h-1.5 w-44 overflow-hidden rounded-full bg-white/10 sm:w-56">
+    <div className="h-1.5 overflow-hidden rounded-full bg-white/10" style={{ width }}>
       <div
         className="h-full rounded-full"
         style={{

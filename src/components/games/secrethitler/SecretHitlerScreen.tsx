@@ -7,6 +7,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { PartyMenu } from "@/components/party/PartyMenu";
 import { Icons, Medallion } from "@/components/ui";
 import {
   getMutedServerSnapshot,
@@ -48,6 +49,7 @@ import {
   RulesModal,
 } from "./Overlays";
 import { mustAct, playSecretHitlerDiff, shSfx } from "./sfx";
+import { clamp, useBox } from "@/lib/client/useBox";
 
 const PHASE_COPY: Record<SecretHitlerView["phase"], { eyebrow: string; title: string; hint: string }> = {
   nomination: {
@@ -188,11 +190,20 @@ function Timer({ text, urgent }: { text: string | null; urgent: boolean }) {
   );
 }
 
-function Stamp({ text, tone = "verm" }: { text: string; tone?: "verm" | "slate" | "ink" }) {
+type Size = "xs" | "sm" | "md" | "lg";
+
+const TAG_TEXT: Record<Size, string> = {
+  xs: "text-[7.5px] leading-[13px]",
+  sm: "text-[8px] leading-4",
+  md: "text-[10px] leading-[18px]",
+  lg: "text-[11.5px] leading-5",
+};
+
+function Stamp({ text, tone = "verm", size = "sm" }: { text: string; tone?: "verm" | "slate" | "ink"; size?: Size }) {
   const color = tone === "verm" ? VERM_DARK : tone === "slate" ? SLATE_DEEP : INK;
   return (
     <span
-      className={`${oswald.className} inline-block rotate-[-6deg] border-2 px-1 text-[8px] font-bold uppercase leading-4 tracking-[0.12em]`}
+      className={`${oswald.className} inline-block rotate-[-6deg] border-2 px-1 font-bold uppercase tracking-[0.12em] ${TAG_TEXT[size]}`}
       style={{ borderColor: color, color }}
     >
       {text}
@@ -200,10 +211,10 @@ function Stamp({ text, tone = "verm" }: { text: string; tone?: "verm" | "slate" 
   );
 }
 
-function Placard({ text, tone }: { text: string; tone: "ink" | "slate" }) {
+function Placard({ text, tone, size = "sm" }: { text: string; tone: "ink" | "slate"; size?: Size }) {
   return (
     <span
-      className={`${oswald.className} inline-block px-1.5 text-[8px] font-semibold uppercase leading-4 tracking-[0.16em]`}
+      className={`${oswald.className} inline-block px-1.5 font-semibold uppercase tracking-[0.16em] ${TAG_TEXT[size]}`}
       style={{ background: tone === "ink" ? INK : SLATE, color: "#f1e6c8" }}
     >
       {text}
@@ -228,6 +239,9 @@ function SeatCard({
   selectable,
   selected,
   onSelect,
+  rowH,
+  narrow,
+  style,
 }: {
   player: SHViewPlayer;
   isYou: boolean;
@@ -241,23 +255,54 @@ function SeatCard({
   selectable: boolean;
   selected: boolean;
   onSelect: () => void;
+  /** the row height the chamber gives this seat — everything inside scales from it */
+  rowH: number;
+  /** a slim column (three across a phone): tighter padding, smaller tags */
+  narrow?: boolean;
+  style?: React.CSSProperties;
 }) {
   const dead = !player.alive;
+  // below 44px a seat folds into a one-line chip; above, it grows in tiers
+  const chip = rowH < 44;
+  const tier = chip ? 0 : rowH < 78 ? 1 : rowH < 112 ? 2 : rowH < 150 ? 3 : 4;
+  const medal = Math.round(clamp(rowH * (chip ? 0.68 : 0.54), 22, 100));
+  const badge = Math.round(clamp(medal * 0.4, 13, 28));
+  const tag: Size = narrow ? "xs" : (["xs", "sm", "md", "md", "lg"] as const)[tier];
+  const nameCls = ["text-[11.5px]", "text-[12.5px]", "text-[15px]", "text-[18px]", "text-[21px]"][tier];
+  const youCls = ["", "text-[7.5px]", "text-[9px]", "text-[9px]", "text-[10px]"][tier];
+  const pad = narrow ? "gap-1.5 px-1.5" : ["gap-1.5 px-1.5", "gap-2.5 px-2.5", "gap-3.5 px-4", "gap-4 px-5", "gap-5 px-6"][tier];
+
+  // chips keep only the offices, as one-letter placards
+  const chipTags = (
+    <>
+      {isPresident && !dead ? <ChipTag letter="P" title="President" bg={INK} /> : null}
+      {isNominee ? <ChipTag letter="N" title="Chancellor nominee" bg={SLATE} /> : null}
+      {isChancellor ? <ChipTag letter="C" title="Chancellor" bg={SLATE} /> : null}
+      {!dead && termLimited ? <ChipTag letter="T" title="Term-limited" bg={VERM_DARK} /> : null}
+      {voted ? (
+        <span className={`${typewriter.className} shrink-0 text-[10px]`} style={{ color: SLATE_DEEP }} title="Ballot in">
+          ✓
+        </span>
+      ) : null}
+    </>
+  );
+
   const content = (
     <>
       <div className="relative shrink-0" style={dead ? { filter: "grayscale(1) contrast(0.85)" } : undefined}>
-        <Medallion name={player.name} seat={player.seat} size={40} dim={dead || player.left} />
+        <Medallion name={player.name} seat={player.seat} size={medal} dim={dead || player.left} />
         {dead ? (
-          <svg viewBox="0 0 40 40" width={40} height={40} className="absolute inset-0" aria-hidden>
+          <svg viewBox="0 0 40 40" width={medal} height={medal} className="absolute inset-0" aria-hidden>
             <path d="M7 7 L33 33 M33 7 L7 33" stroke={INK} strokeWidth="4.5" strokeLinecap="round" />
           </svg>
         ) : null}
         {mark ? (
           <span
-            className={`${oswald.className} absolute -bottom-1 -right-1 grid place-items-center border text-[8px] font-bold`}
+            className={`${oswald.className} absolute -bottom-1 -right-1 grid place-items-center border font-bold`}
             style={{
-              width: 17,
-              height: 17,
+              width: badge,
+              height: badge,
+              fontSize: Math.round(badge * 0.5),
               ...(mark === "hitler"
                 ? { background: INK, color: "#e05a33", borderColor: VERM }
                 : { background: VERM, color: "#f1e6c8", borderColor: VERM_DARK }),
@@ -268,34 +313,49 @@ function SeatCard({
           </span>
         ) : null}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1">
+      {chip ? (
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           <span
-            className={`${typewriter.className} truncate text-[12px] ${dead || player.left ? "line-through" : ""}`}
+            className={`${typewriter.className} truncate ${nameCls} ${dead || player.left ? "line-through" : ""}`}
             style={{ color: dead ? INK_FADE : INK }}
           >
             {player.name}
           </span>
-          {isYou ? (
-            <span className={`${oswald.className} text-[7px] uppercase tracking-[0.2em]`} style={{ color: INK_FADE }}>
-              you
-            </span>
-          ) : null}
+          {chipTags}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1">
-          {isPresident && !dead ? <Placard text="President" tone="ink" /> : null}
-          {isNominee ? <Placard text="Nominee" tone="slate" /> : null}
-          {isChancellor ? <Placard text="Chancellor" tone="slate" /> : null}
-          {dead ? <Stamp text="Executed" /> : null}
-          {!dead && termLimited ? <Stamp text="Term-limited" /> : null}
-          {investigated ? <Stamp text="Investigated" tone="ink" /> : null}
-          {voted ? (
-            <span className={`${typewriter.className} text-[8px]`} style={{ color: SLATE_DEEP }}>
-              ballot in ✓
+      ) : (
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span
+              className={`${typewriter.className} truncate ${nameCls} ${dead || player.left ? "line-through" : ""}`}
+              style={{ color: dead ? INK_FADE : INK }}
+            >
+              {player.name}
             </span>
-          ) : null}
+            {isYou ? (
+              <span className={`${oswald.className} shrink-0 uppercase tracking-[0.2em] ${youCls}`} style={{ color: INK_FADE }}>
+                you
+              </span>
+            ) : null}
+          </div>
+          <div className={`flex flex-wrap items-center gap-1 ${tier >= 2 ? "mt-1.5" : "mt-0.5"}`}>
+            {isPresident && !dead ? <Placard text="President" tone="ink" size={tag} /> : null}
+            {isNominee ? <Placard text="Nominee" tone="slate" size={tag} /> : null}
+            {isChancellor ? <Placard text="Chancellor" tone="slate" size={tag} /> : null}
+            {dead ? <Stamp text="Executed" size={tag} /> : null}
+            {!dead && termLimited ? <Stamp text={narrow ? "Term-ltd" : "Term-limited"} size={tag} /> : null}
+            {investigated ? <Stamp text={narrow ? "Probed" : "Investigated"} tone="ink" size={tag} /> : null}
+            {voted ? (
+              <span
+                className={`${typewriter.className} ${["", "text-[8.5px]", "text-[10.5px]", "text-[10.5px]", "text-[12px]"][tier]}`}
+                style={{ color: SLATE_DEEP }}
+              >
+                ballot in ✓
+              </span>
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 
@@ -303,11 +363,11 @@ function SeatCard({
     ? { borderColor: VERM, background: "#eeD9c4", boxShadow: `2px 2px 0 ${VERM_DARK}` }
     : isPresident && !dead
       ? { borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }
-      : { borderColor: `${INK}77`, background: dead ? "#ddd3ba" : "#e6dcbf" };
+      : { borderColor: isYou && chip ? INK_SOFT : `${INK}77`, background: dead ? "#ddd3ba" : "#e6dcbf" };
 
   if (!selectable) {
     return (
-      <div className="flex min-h-[58px] items-center gap-2.5 border-2 px-2.5 py-2" style={border}>
+      <div role="listitem" className={`flex min-w-0 items-center border-2 ${chip ? "py-1" : "py-1.5"} ${pad}`} style={{ ...border, ...style }}>
         {content}
       </div>
     );
@@ -319,12 +379,54 @@ function SeatCard({
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={`Choose ${player.name}`}
-      className="flex min-h-[58px] w-full items-center gap-2.5 border-2 px-2.5 py-2 text-left"
-      style={border}
+      className={`flex w-full min-w-0 items-center border-2 text-left ${chip ? "py-1" : "py-1.5"} ${pad}`}
+      style={{ ...border, ...style }}
     >
       {content}
     </motion.button>
   );
+}
+
+function ChipTag({ letter, title, bg }: { letter: string; title: string; bg: string }) {
+  return (
+    <span
+      className={`${oswald.className} grid h-[14px] w-[14px] shrink-0 place-items-center text-[8.5px] font-bold leading-none`}
+      style={{ background: bg, color: "#f1e6c8" }}
+      title={title}
+    >
+      {letter}
+    </span>
+  );
+}
+
+/** How the chamber lays out in the space it has: columns by width, row
+    height by what is left after the plates and the action dock. Seats grow
+    with the room (up to half their width), and fold into chips below 44px. */
+function seatLayout(w: number, h: number, n: number) {
+  const gap = w < 520 ? 6 : w < 1100 ? 10 : 14;
+  const fitFor = (cols: number) => {
+    const rows = Math.ceil(n / cols);
+    const cardW = (w - gap * (cols - 1)) / cols;
+    const cap = Math.min(190, cardW * 0.48);
+    const fit = h > 0 ? Math.floor((h - gap * (rows - 1)) / rows) : 60;
+    return { cols, rows, rowH: Math.max(32, Math.min(cap, fit)) };
+  };
+  // phones keep two columns while two-line seats fit, then try three
+  if (w < 520) {
+    const two = fitFor(2);
+    if (two.rowH >= 44 || n <= 4) return { gap, ...two };
+    const three = fitFor(3);
+    return { gap, ...(three.rowH > two.rowH ? three : two) };
+  }
+  // wider chambers take whichever column count gives the largest seats (ties
+  // go to more columns, which keeps rows short and the seats well-shaped)
+  let best = fitFor(w < 760 ? 3 : 2);
+  for (const cols of [3, 4]) {
+    if (cols > n) break;
+    const c = fitFor(cols);
+    if (c.rowH >= best.rowH - 2) best = c;
+  }
+  return { gap, ...best };
 }
 
 /* ---------------------- legislative hand (tap-to-pick) ------------------- */
@@ -333,13 +435,15 @@ function PolicyHand({
   cards,
   picked,
   onPick,
+  tight,
 }: {
   cards: ("liberal" | "fascist")[];
   picked: number | null;
   onPick: (i: number) => void;
+  tight?: boolean;
 }) {
   return (
-    <div className="flex items-end justify-center gap-3">
+    <div className="flex items-end justify-center gap-2.5 sm:gap-3 lg:gap-4">
       {cards.map((card, i) => (
         <motion.button
           key={i}
@@ -354,7 +458,7 @@ function PolicyHand({
             rotate: picked === i ? 0 : (i - (cards.length - 1) / 2) * 3,
           }}
           transition={{ duration: 0.24, ease: EASE }}
-          className="w-[104px] shrink-0 border-2 p-1 sm:w-[120px]"
+          className={`shrink-0 border-2 p-1 ${tight ? "w-[86px]" : "w-[96px] min-[380px]:w-[104px] sm:w-[120px] lg:w-[148px] 2xl:w-[168px]"}`}
           style={{
             borderColor: picked === i ? VERM : INK,
             background: PAPER,
@@ -371,7 +475,7 @@ function PolicyHand({
 function Deliberation({ president, chancellor, note }: { president: string; chancellor: string; note: string }) {
   return (
     <motion.div
-      className="relative overflow-hidden border-2 p-5 text-center"
+      className="relative overflow-hidden border-2 p-4 text-center sm:p-5 lg:p-6"
       style={{ borderColor: INK, background: "#241d15", boxShadow: PRESS_SHADOW_SM }}
       animate={{ opacity: [0.92, 1, 0.92] }}
       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -383,10 +487,10 @@ function Deliberation({ president, chancellor, note }: { president: string; chan
       <div className="pointer-events-none absolute -bottom-5 -left-3 w-20 -rotate-6 opacity-40">
         <PolicyBack />
       </div>
-      <div className={`${oswald.className} text-base font-semibold uppercase tracking-[0.3em]`} style={{ color: "#e9ddc0" }}>
+      <div className={`${oswald.className} text-base font-semibold uppercase tracking-[0.3em] lg:text-lg`} style={{ color: "#e9ddc0" }}>
         The cabinet deliberates…
       </div>
-      <div className="mt-3 flex items-center justify-center gap-3">
+      <div className="mt-2.5 flex items-center justify-center gap-3 sm:mt-3">
         {[
           { label: "President", name: president },
           { label: "Chancellor", name: chancellor },
@@ -395,13 +499,13 @@ function Deliberation({ president, chancellor, note }: { president: string; chan
             <div className={`${oswald.className} text-[7px] uppercase tracking-[0.24em]`} style={{ color: "#b3a077" }}>
               {seat.label}
             </div>
-            <div className={`${typewriter.className} text-[11px]`} style={{ color: "#e9ddc0" }}>
+            <div className={`${typewriter.className} text-[11px] lg:text-[13px]`} style={{ color: "#e9ddc0" }}>
               {seat.name}
             </div>
           </div>
         ))}
       </div>
-      <div className={`${typewriter.className} mt-3 text-[10px]`} style={{ color: "#b3a077" }}>
+      <div className={`${typewriter.className} mt-2.5 text-[10px] sm:mt-3 lg:text-[11px]`} style={{ color: "#b3a077" }}>
         {note}
       </div>
     </motion.div>
@@ -415,11 +519,14 @@ function Stage({
   youId,
   spectating,
   send,
+  tight,
 }: {
   view: SecretHitlerView;
   youId: string;
   spectating: boolean;
   send: (m: unknown) => void;
+  /** a short phone column: docks drop some air */
+  tight: boolean;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [pickedIdx, setPickedIdx] = useState<number | null>(null);
@@ -465,13 +572,13 @@ function Stage({
   const votesIn = view.votedIds.length;
 
   const powerDock = (power: SHPower, confirmLabel: string, tone: "verm" | "ink") => (
-    <div className="border-2 p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+    <div className="border-2 p-3 sm:p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
+      <div className="flex flex-col items-center gap-2.5 text-center sm:flex-row sm:justify-between sm:gap-3 sm:text-left">
         <div>
           <div className={`${oswald.className} text-[10px] font-bold uppercase tracking-[0.3em]`} style={{ color: VERM_DARK }}>
             Ministry order · {POWER_META[power].title}
           </div>
-          <div className={`${typewriter.className} mt-1 text-[11px]`} style={{ color: INK_SOFT }}>
+          <div className={`${typewriter.className} mt-1 text-[11px] lg:text-[12px]`} style={{ color: INK_SOFT }}>
             {POWER_META[power].blurb} Choose a seat above.
           </div>
         </div>
@@ -494,50 +601,66 @@ function Stage({
 
   const waitingNote = (text: string) => (
     <div
-      className={`${typewriter.className} border-2 border-dashed p-4 text-center text-[11px]`}
+      className={`${typewriter.className} border-2 border-dashed p-3 text-center text-[11px] sm:p-4 lg:text-[12.5px]`}
       style={{ borderColor: `${INK}66`, color: INK_SOFT, background: "#e2d6b6" }}
     >
       {text}
     </div>
   );
 
+  const [chamberRef, chamber] = useBox<HTMLDivElement>();
+  const { cols, gap, rowH } = seatLayout(chamber.w, chamber.h, seats.length);
+  const narrow = cols >= 3 && chamber.w / cols < 140;
+  const lastRowStart = seats.length - (seats.length % cols || cols);
+  const orphanOffset = cols - (seats.length - lastRowStart);
+
   return (
-    <div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="list" aria-label="Players">
-        {seats.map((p) => (
-          <SeatCard
-            key={p.id}
-            player={p}
-            isYou={p.id === youId}
-            isPresident={p.id === view.presidentId && view.phase !== "over"}
-            isNominee={p.id === view.nomineeId}
-            isChancellor={p.id === view.chancellorId && view.phase !== "over"}
-            voted={view.phase === "election" && votedSet.has(p.id)}
-            termLimited={
-              view.phase === "nomination" &&
-              p.alive &&
-              p.id !== view.presidentId &&
-              !eligibleSet.has(p.id)
-            }
-            investigated={investigatedSet.has(p.id)}
-            mark={markFor(p)}
-            selectable={seatSelectable(p)}
-            selected={picked === p.id}
-            onSelect={() => setPicked((prev) => (prev === p.id ? null : p.id))}
-          />
-        ))}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={chamberRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+        <div
+          className="grid min-h-full content-center"
+          style={{ gridTemplateColumns: `repeat(${cols * 2}, minmax(0, 1fr))`, gridAutoRows: rowH, gap }}
+          role="list"
+          aria-label="Players"
+        >
+          {seats.map((p, i) => (
+            <SeatCard
+              key={p.id}
+              rowH={rowH}
+              narrow={narrow}
+              style={{ gridColumn: `${i === lastRowStart && orphanOffset > 0 ? orphanOffset + 1 : "auto"} / span 2` }}
+              player={p}
+              isYou={p.id === youId}
+              isPresident={p.id === view.presidentId && view.phase !== "over"}
+              isNominee={p.id === view.nomineeId}
+              isChancellor={p.id === view.chancellorId && view.phase !== "over"}
+              voted={view.phase === "election" && votedSet.has(p.id)}
+              termLimited={
+                view.phase === "nomination" &&
+                p.alive &&
+                p.id !== view.presidentId &&
+                !eligibleSet.has(p.id)
+              }
+              investigated={investigatedSet.has(p.id)}
+              mark={markFor(p)}
+              selectable={seatSelectable(p)}
+              selected={picked === p.id}
+              onSelect={() => setPicked((prev) => (prev === p.id ? null : p.id))}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-3 shrink-0 lg:mt-4">
         {view.phase === "nomination" ? (
           nominating ? (
-            <div className="border-2 p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
-              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
+              <div className="flex flex-col items-center gap-2.5 text-center sm:flex-row sm:justify-between sm:gap-3 sm:text-left">
                 <div>
                   <div className={`${oswald.className} text-[10px] font-bold uppercase tracking-[0.3em]`} style={{ color: INK }}>
                     You hold the placard
                   </div>
-                  <div className={`${typewriter.className} mt-1 text-[11px]`} style={{ color: INK_SOFT }}>
+                  <div className={`${typewriter.className} mt-1 text-[11px] lg:text-[12px]`} style={{ color: INK_SOFT }}>
                     Nominate a Chancellor. Stamped seats are term-limited.
                   </div>
                 </div>
@@ -565,11 +688,11 @@ function Stage({
 
         {view.phase === "election" ? (
           acting && !sent && view.yourVote === undefined && !votedSet.has(youId) ? (
-            <div className="border-2 p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
               <div className={`${typewriter.className} text-center text-[10px] tracking-[0.2em]`} style={{ color: INK_SOFT }}>
                 GOVERNMENT: {presidentName.toUpperCase()} · {byId.get(view.nomineeId ?? "")?.name.toUpperCase() ?? ""}
               </div>
-              <div className="mt-3 flex items-center justify-center gap-5">
+              <div className="mt-2.5 flex items-center justify-center gap-5 sm:mt-3 lg:gap-8">
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.94 }}
@@ -578,7 +701,7 @@ function Stage({
                     shSfx("stamp");
                     send({ type: "vote", ja: true });
                   }}
-                  className={`${oswald.className} w-28 border-2 py-4 text-center text-2xl font-bold tracking-[0.06em]`}
+                  className={`${oswald.className} w-28 border-2 text-center font-bold tracking-[0.06em] lg:w-36 lg:py-5 lg:text-3xl ${tight ? "py-2 text-xl" : "py-3.5 text-2xl sm:py-4"}`}
                   style={{ borderColor: SLATE_DEEP, color: SLATE_DEEP, background: "#dde3e3", boxShadow: `3px 3px 0 ${SLATE_DEEP}` }}
                 >
                   JA!
@@ -592,14 +715,14 @@ function Stage({
                     shSfx("stamp");
                     send({ type: "vote", ja: false });
                   }}
-                  className={`${oswald.className} w-28 border-2 py-4 text-center text-2xl font-bold tracking-[0.06em]`}
+                  className={`${oswald.className} w-28 border-2 text-center font-bold tracking-[0.06em] lg:w-36 lg:py-5 lg:text-3xl ${tight ? "py-2 text-xl" : "py-3.5 text-2xl sm:py-4"}`}
                   style={{ borderColor: VERM_DARK, color: VERM_DARK, background: "#e8d3c2", boxShadow: `3px 3px 0 ${VERM_DARK}` }}
                 >
                   NEIN!
                   <div className={`${typewriter.className} mt-1 text-[8px] tracking-[0.2em]`}>AGAINST</div>
                 </motion.button>
               </div>
-              <div className={`${typewriter.className} mt-3 text-center text-[10px] tabular-nums`} style={{ color: INK_FADE }}>
+              <div className={`${typewriter.className} mt-2.5 text-center text-[10px] tabular-nums sm:mt-3`} style={{ color: INK_FADE }}>
                 {votesIn}/{view.aliveCount} ballots in the box
               </div>
             </div>
@@ -616,18 +739,19 @@ function Stage({
 
         {view.phase === "legislative_president" ? (
           isPresident && view.presidentHand && !sent ? (
-            <div className="border-2 p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
               <div className={`${typewriter.className} text-center text-[10px] tracking-[0.18em]`} style={{ color: INK_SOFT }}>
                 SELECT ONE POLICY TO BURN — THE OTHER TWO PASS TO {chancellorName.toUpperCase()}
               </div>
-              <div className="mt-3">
+              <div className="mt-2.5 sm:mt-3">
                 <PolicyHand
+                  tight={tight}
                   cards={view.presidentHand}
                   picked={pickedIdx}
                   onPick={(i) => setPickedIdx((prev) => (prev === i ? null : i))}
                 />
               </div>
-              <div className="mt-4 flex justify-center">
+              <div className="mt-3 flex justify-center sm:mt-4">
                 <InkButton
                   tone="verm"
                   disabled={pickedIdx === null}
@@ -649,18 +773,19 @@ function Stage({
 
         {view.phase === "legislative_chancellor" ? (
           isChancellor && view.chancellorHand && !sent ? (
-            <div className="border-2 p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
               <div className={`${typewriter.className} text-center text-[10px] tracking-[0.18em]`} style={{ color: INK_SOFT }}>
                 ENACT ONE POLICY — THE OTHER BURNS{view.vetoRefused ? " · VETO REFUSED, YOU MUST ENACT" : ""}
               </div>
-              <div className="mt-3">
+              <div className="mt-2.5 sm:mt-3">
                 <PolicyHand
+                  tight={tight}
                   cards={view.chancellorHand}
                   picked={pickedIdx}
                   onPick={(i) => setPickedIdx((prev) => (prev === i ? null : i))}
                 />
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 sm:mt-4">
                 <InkButton
                   tone="slate"
                   disabled={pickedIdx === null}
@@ -693,8 +818,8 @@ function Stage({
 
         {view.phase === "veto_consent" ? (
           isPresident && !sent ? (
-            <div className="border-2 p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
-              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
+              <div className="flex flex-col items-center gap-2.5 text-center sm:flex-row sm:justify-between sm:gap-3 sm:text-left">
                 <div>
                   <div className={`${oswald.className} text-[10px] font-bold uppercase tracking-[0.3em]`} style={{ color: VERM_DARK }}>
                     {chancellorName} moves to veto
@@ -735,15 +860,15 @@ function Stage({
 
         {view.phase === "power_peek" ? (
           isPresident && view.peek && !sent ? (
-            <div className="border-2 p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
+            <div className="border-2 p-3 sm:p-4" style={{ borderColor: VERM_DARK, background: "#e8d3ae", boxShadow: PRESS_SHADOW_SM }}>
               <div className={`${typewriter.className} text-center text-[10px] tracking-[0.18em]`} style={{ color: VERM_DARK }}>
                 YOUR EYES ONLY — THE NEXT THREE POLICIES, TOP FIRST
               </div>
-              <div className="mt-3 flex items-center justify-center gap-3">
+              <div className="mt-2.5 flex items-center justify-center gap-3 sm:mt-3 lg:gap-4">
                 {view.peek.map((card, i) => (
                   <motion.div
                     key={i}
-                    className="w-[96px]"
+                    className="w-[92px] sm:w-[104px] lg:w-[136px]"
                     initial={{ rotateY: 180, opacity: 0 }}
                     animate={{ rotateY: 0, opacity: 1 }}
                     transition={{ delay: 0.25 + i * 0.3, duration: 0.4, ease: EASE }}
@@ -752,7 +877,7 @@ function Stage({
                   </motion.div>
                 ))}
               </div>
-              <div className="mt-4 flex justify-center">
+              <div className="mt-3 flex justify-center sm:mt-4">
                 <InkButton
                   onClick={() => {
                     setSent(true);
@@ -790,77 +915,166 @@ function Stage({
 
 /* ------------------------------ role sidebar ----------------------------- */
 
+function dossierKnowledge(view: SecretHitlerView, youId: string): string {
+  const byId = new Map(view.players.map((p) => [p.id, p.name]));
+  const fellowIds = (view.knowledge?.fascistIds ?? []).filter((id) => id !== youId);
+  if (view.yourRole === "hitler") {
+    return fellowIds.length
+      ? `Your fascist: ${fellowIds.map((id) => byId.get(id) ?? id).join(", ")}. Stay presentable.`
+      : "At this table size you know no one. Play the moderate.";
+  }
+  if (view.yourParty === "fascist") {
+    const hitlerName = byId.get(view.knowledge?.hitlerId ?? "") ?? "?";
+    const others = fellowIds.filter((id) => id !== view.knowledge?.hitlerId).map((id) => byId.get(id) ?? id);
+    return `Hitler is ${hitlerName}.${others.length ? ` Fellow fascists: ${others.join(", ")}.` : ""} Protect the name.`;
+  }
+  return "You know nothing. Read the votes; the record never lies twice the same way.";
+}
+
+function Investigations({ view, big }: { view: SecretHitlerView; big?: boolean }) {
+  if (!view.yourInvestigations?.length) return null;
+  const byId = new Map(view.players.map((p) => [p.id, p.name]));
+  return (
+    <div className="mt-2.5 border-t-2 pt-2" style={{ borderColor: `${INK}33` }}>
+      <div className={`${oswald.className} text-[8px] font-bold uppercase tracking-[0.24em]`} style={{ color: INK_SOFT }}>
+        Your investigations
+      </div>
+      {view.yourInvestigations.map((x) => (
+        <div key={x.targetId} className={`${typewriter.className} mt-1 flex justify-between ${big ? "text-[11px]" : "text-[10px]"}`}>
+          <span style={{ color: INK_SOFT }}>{byId.get(x.targetId) ?? x.targetId}</span>
+          <b style={{ color: x.party === "liberal" ? SLATE_DEEP : VERM_DARK }}>{x.party.toUpperCase()}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RolePanel({
   view,
   youId,
   sealed,
   onToggle,
+  cardW,
 }: {
   view: SecretHitlerView;
   youId: string;
   sealed: boolean;
   onToggle: () => void;
+  cardW: number;
 }) {
   if (!view.yourRole || !view.yourParty) return null;
-  const byId = new Map(view.players.map((p) => [p.id, p.name]));
-  const fellowIds = (view.knowledge?.fascistIds ?? []).filter((id) => id !== youId);
-
-  let knowledgeText: string;
-  if (view.yourRole === "hitler") {
-    knowledgeText = fellowIds.length
-      ? `Your fascist: ${fellowIds.map((id) => byId.get(id) ?? id).join(", ")}. Stay presentable.`
-      : "At this table size you know no one. Play the moderate.";
-  } else if (view.yourParty === "fascist") {
-    const hitlerName = byId.get(view.knowledge?.hitlerId ?? "") ?? "?";
-    const others = fellowIds.filter((id) => id !== view.knowledge?.hitlerId).map((id) => byId.get(id) ?? id);
-    knowledgeText = `Hitler is ${hitlerName}.${others.length ? ` Fellow fascists: ${others.join(", ")}.` : ""} Protect the name.`;
-  } else {
-    knowledgeText = "You know nothing. Read the votes; the record never lies twice the same way.";
-  }
+  const roomy = cardW >= 112;
 
   return (
-    <div className="relative border-2 p-3.5" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
+    <div className="relative shrink-0 border-2 p-3.5" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
       <div className={`${oswald.className} text-[9px] font-bold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
         Your dossier
       </div>
-      <div className="mt-2.5 flex items-start gap-3">
-        <FlipDossier role={view.yourRole} w={100} sealed={sealed} onToggle={onToggle} />
+      <div className="mt-2.5 flex items-start gap-3.5">
+        <FlipDossier role={view.yourRole} w={cardW} sealed={sealed} onToggle={onToggle} />
         <div className="min-w-0 flex-1">
           {sealed ? (
-            <p className={`${typewriter.className} text-[11px] leading-4`} style={{ color: INK_FADE }}>
+            <p className={`${typewriter.className} ${roomy ? "text-[12px] leading-[18px]" : "text-[11px] leading-4"}`} style={{ color: INK_FADE }}>
               Sealed. Tap the envelope when no one is reading over your shoulder.
             </p>
           ) : (
             <>
-              <div className={`${oswald.className} text-base font-bold uppercase tracking-[0.14em]`} style={{ color: view.yourParty === "liberal" ? SLATE_DEEP : VERM_DARK }}>
+              <div
+                className={`${oswald.className} font-bold uppercase tracking-[0.14em] ${roomy ? "text-lg" : "text-base"}`}
+                style={{ color: view.yourParty === "liberal" ? SLATE_DEEP : VERM_DARK }}
+              >
                 {view.yourRole}
               </div>
-              <p className={`${typewriter.className} mt-1 text-[10.5px] leading-4`} style={{ color: INK_SOFT }}>
-                {knowledgeText}
+              <p
+                className={`${typewriter.className} mt-1 ${roomy ? "text-[11.5px] leading-[17px]" : "text-[10.5px] leading-4"}`}
+                style={{ color: INK_SOFT }}
+              >
+                {dossierKnowledge(view, youId)}
               </p>
-              <div className="mt-2 w-24">
-                <PartyCard party={view.yourParty} w={96} />
+              <div className="mt-2" style={{ width: roomy ? 116 : 96 }}>
+                <PartyCard party={view.yourParty} w={roomy ? 116 : 96} />
               </div>
             </>
           )}
         </div>
       </div>
-      {!sealed && view.yourInvestigations?.length ? (
-        <div className="mt-2.5 border-t-2 pt-2" style={{ borderColor: `${INK}33` }}>
-          <div className={`${oswald.className} text-[8px] font-bold uppercase tracking-[0.24em]`} style={{ color: INK_SOFT }}>
-            Your investigations
-          </div>
-          {view.yourInvestigations.map((x) => (
-            <div key={x.targetId} className={`${typewriter.className} mt-1 flex justify-between text-[10px]`}>
-              <span style={{ color: INK_SOFT }}>{byId.get(x.targetId) ?? x.targetId}</span>
-              <b style={{ color: x.party === "liberal" ? SLATE_DEEP : VERM_DARK }}>{x.party.toUpperCase()}</b>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <div className={`${typewriter.className} mt-2 text-center text-[8px]`} style={{ color: INK_FADE }}>
+      {!sealed ? <Investigations view={view} big={roomy} /> : null}
+      <div className={`${typewriter.className} mt-2 text-center text-[8.5px]`} style={{ color: INK_FADE }}>
         tap the card to {sealed ? "open" : "re-seal"} it
       </div>
+    </div>
+  );
+}
+
+/** Below the desktop breakpoint the dossier rides in one compact strip under
+    the chamber: the envelope (still tap-to-open), the role and what it knows. */
+function DossierStrip({
+  view,
+  youId,
+  sealed,
+  onToggle,
+  cardW,
+}: {
+  view: SecretHitlerView;
+  youId: string;
+  sealed: boolean;
+  onToggle: () => void;
+  cardW: number;
+}) {
+  if (!view.yourRole || !view.yourParty) return null;
+  const roomy = cardW >= 72;
+  // on short phones the strip slims down: a smaller envelope, two lines of
+  // what you know, and the flip hint folds into the envelope's own tooltip
+  const slim = cardW < 50;
+  const inv = view.yourInvestigations ?? [];
+  const byId = new Map(view.players.map((p) => [p.id, p.name]));
+  return (
+    <div
+      className={`relative shrink-0 border-2 ${slim ? "px-2.5 py-2" : "px-3 py-2.5"}`}
+      style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}
+    >
+      <div className={`flex items-center ${slim ? "gap-2.5" : "gap-3"}`}>
+        <FlipDossier role={view.yourRole} w={cardW} sealed={sealed} onToggle={onToggle} />
+        <div className="min-w-0 flex-1">
+          <div
+            className={`${oswald.className} truncate font-bold uppercase tracking-[0.14em] ${roomy ? "text-lg" : slim ? "text-[13px]" : "text-[14px]"}`}
+            style={{ color: sealed ? INK_SOFT : view.yourParty === "liberal" ? SLATE_DEEP : VERM_DARK }}
+          >
+            {sealed ? "Your dossier" : view.yourRole}
+          </div>
+          <p
+            className={`${typewriter.className} mt-0.5 ${slim ? "line-clamp-2" : "line-clamp-3"} ${roomy ? "text-[12px] leading-[17px]" : "text-[10.5px] leading-[15px]"}`}
+            style={{ color: sealed ? INK_FADE : INK_SOFT }}
+          >
+            {sealed
+              ? "Sealed. Tap the envelope when no one is reading over your shoulder."
+              : `${dossierKnowledge(view, youId)}${
+                  inv.length
+                    ? ` Files: ${inv.map((x) => `${byId.get(x.targetId) ?? "?"} ${x.party === "liberal" ? "LIB" : "FAS"}`).join(", ")}.`
+                    : ""
+                }`}
+          </p>
+          {slim ? null : (
+            <div className={`${typewriter.className} mt-0.5 text-[8.5px]`} style={{ color: INK_FADE }}>
+              tap the card to {sealed ? "open" : "re-seal"} it
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecordList({ log }: { log: SHLogEntry[] }) {
+  return (
+    <div className="space-y-2.5" aria-live="polite">
+      {[...log].reverse().map((entry, index) => (
+        <div key={entry.i} className="border-l-2 pl-2.5" style={{ borderColor: index === 0 ? VERM : `${INK}44` }}>
+          <div className={`${typewriter.className} text-[11px] leading-4`} style={{ color: index === 0 ? INK : INK_SOFT }}>
+            {logText(entry)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -890,6 +1104,15 @@ export function SecretHitlerScreen({
   const copy = PHASE_COPY[view.phase];
   const me = view.players.find((p) => p.id === youId);
   const deceased = !!me && !me.alive;
+
+  // the play column's box picks the plate density and the dossier's size
+  const [playRef, play] = useBox<HTMLDivElement>();
+  const plateSize = play.w && play.w < 640 ? "sm" : play.w >= 1000 && play.h >= 780 ? "lg" : "md";
+  const desktopCardW = play.h >= 940 ? 132 : play.h >= 780 ? 116 : 100;
+  // short, narrow columns (phones) drop the phase hint and slim the dossier strip
+  const tight = play.h > 0 && play.h < 700 && play.w < 700;
+  const stripCardW = tight ? 42 : play.w >= 600 && play.h >= 820 ? 84 : 54;
+  const showRole = !spectating && !!view.yourRole;
 
   const prevViewRef = useRef<SecretHitlerView | null>(null);
   useEffect(() => {
@@ -936,10 +1159,11 @@ export function SecretHitlerScreen({
     : "";
 
   const round = view.elections.length + 1;
+  const toolBtn = "grid h-8 w-8 shrink-0 place-items-center border-2";
 
   return (
     <div
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="relative flex h-dvh shrink-0 flex-col overflow-hidden"
       style={{ background: PAPER, color: INK }}
       onPointerDown={primeSound}
     >
@@ -960,157 +1184,221 @@ export function SecretHitlerScreen({
         />
       ) : null}
 
-      <header
-        className="relative z-10 flex items-center justify-between border-b-2 px-3 pb-2 pt-[max(.65rem,env(safe-area-inset-top))] sm:px-6"
-        style={{ borderColor: INK }}
-      >
-        <div className="flex items-baseline gap-3">
-          <h1 className={`${oswald.className} text-sm font-bold uppercase tracking-[0.18em] sm:text-base sm:tracking-[0.3em]`}>
-            Secret<span style={{ color: VERM }}> Hitler</span>
-          </h1>
-          <span className={`${typewriter.className} hidden text-[9px] sm:inline`} style={{ color: INK_FADE }}>
-            election №{round} · deck {view.deckCount} · discard {view.discardCount}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            aria-label="Open the election record"
-            className="grid h-8 w-8 place-items-center border-2"
-            style={{ borderColor: INK, color: INK_SOFT }}
-          >
-            <Icons.book size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMuted(!muted)}
-            aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-            className="grid h-8 w-8 place-items-center border-2"
-            style={{ borderColor: INK, color: INK_SOFT }}
-          >
-            {muted ? <Icons.volumeOff size={15} /> : <Icons.volumeOn size={15} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileLogOpen((open) => !open)}
-            aria-label={mobileLogOpen ? "Hide the record" : "Show the record"}
-            aria-expanded={mobileLogOpen}
-            className="grid h-8 w-8 place-items-center border-2 lg:hidden"
-            style={{ borderColor: INK, color: INK_SOFT }}
-          >
-            <Icons.scroll size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setRulesOpen(true)}
-            aria-label="Open the rules"
-            className={`${oswald.className} h-8 border-2 px-2.5 text-[9px] font-semibold uppercase tracking-[0.18em]`}
-            style={{ borderColor: INK, color: INK_SOFT }}
-          >
-            Rules
-          </button>
+      <header className="relative z-10 shrink-0 border-b-2" style={{ borderColor: INK }}>
+        <div className="mx-auto flex w-full max-w-[1680px] items-center justify-between gap-2 px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] sm:px-6">
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1
+              className={`${oswald.className} text-[13px] font-bold uppercase leading-none tracking-[0.18em] sm:text-base sm:tracking-[0.3em]`}
+            >
+              <span className="block sm:inline">Secret</span>
+              <span className="block sm:inline" style={{ color: VERM }}>
+                <span className="hidden sm:inline"> </span>Hitler
+              </span>
+            </h1>
+            <span className={`${typewriter.className} hidden truncate text-[9.5px] sm:inline`} style={{ color: INK_FADE }}>
+              election №{round} · deck {view.deckCount} · discard {view.discardCount}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              aria-label="Open the election record"
+              className={toolBtn}
+              style={{ borderColor: INK, color: INK_SOFT }}
+            >
+              <Icons.book size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMuted(!muted)}
+              aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+              className={toolBtn}
+              style={{ borderColor: INK, color: INK_SOFT }}
+            >
+              {muted ? <Icons.volumeOff size={15} /> : <Icons.volumeOn size={15} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileLogOpen((open) => !open)}
+              aria-label={mobileLogOpen ? "Hide the record" : "Show the record"}
+              aria-expanded={mobileLogOpen}
+              className={`${toolBtn} lg:hidden`}
+              style={{ borderColor: INK, color: INK_SOFT }}
+            >
+              <Icons.scroll size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setRulesOpen(true)}
+              aria-label="Open the rules"
+              className={`${oswald.className} h-8 min-w-8 shrink-0 border-2 px-1 text-[9px] font-semibold uppercase tracking-[0.18em] sm:px-2.5`}
+              style={{ borderColor: INK, color: INK_SOFT }}
+            >
+              <span className="text-[14px] tracking-normal sm:hidden" aria-hidden>
+                ?
+              </span>
+              <span className="hidden sm:inline">Rules</span>
+            </button>
+            <PartyMenu
+              className="ml-1"
+              style={{ borderRadius: 0, borderWidth: 2, borderColor: INK, color: INK, opacity: 1 }}
+            />
+          </div>
         </div>
       </header>
 
-      {spectating ? (
-        <div
-          className={`${oswald.className} relative z-10 mx-auto mt-2 w-fit border-2 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.24em]`}
-          style={{ borderColor: SLATE, color: SLATE_DEEP, background: "#dde3e3" }}
-        >
-          Press gallery · observing
-        </div>
-      ) : null}
-      {deceased ? (
-        <div
-          className={`${oswald.className} relative z-10 mx-auto mt-2 w-fit border-2 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.24em]`}
-          style={{ borderColor: INK, color: INK_SOFT, background: "#ddd3ba" }}
-        >
-          Deceased · you watch in silence, your secret intact
-        </div>
-      ) : null}
-
-      <main className="relative z-10 mx-auto grid w-full max-w-6xl gap-4 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0">
-          <div className="grid gap-3 md:grid-cols-2">
-            <LiberalBoard enacted={view.liberalTrack} tracker={view.tracker} />
-            <FascistBoard enacted={view.fascistTrack} powers={view.powers} vetoUnlocked={view.vetoUnlocked} />
+      <main className="relative z-10 mx-auto flex min-h-0 w-full max-w-[1680px] flex-1 gap-5 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 xl:gap-6">
+        <div ref={playRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className={`grid shrink-0 md:grid-cols-2 ${plateSize === "sm" ? "gap-2" : plateSize === "lg" ? "gap-4" : "gap-3"}`}>
+            <LiberalBoard enacted={view.liberalTrack} tracker={view.tracker} size={plateSize} />
+            <FascistBoard enacted={view.fascistTrack} powers={view.powers} vetoUnlocked={view.vetoUnlocked} size={plateSize} />
           </div>
 
-          <section className="mb-3 mt-4 flex items-end justify-between gap-3 border-b-2 pb-3" style={{ borderColor: `${INK}55` }}>
-            <div>
-              <div className={`${typewriter.className} text-[10px] tracking-[0.28em]`} style={{ color: VERM_DARK }}>
-                {copy.eyebrow.toUpperCase()}
-                {view.specialRound && view.phase !== "over" ? " · SPECIAL ELECTION" : ""}
+          <section
+            className="mt-3 flex shrink-0 items-end justify-between gap-3 border-b-2 pb-2.5 lg:mt-4 lg:pb-3"
+            style={{ borderColor: `${INK}55` }}
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className={`${typewriter.className} text-[10px] tracking-[0.28em]`} style={{ color: VERM_DARK }}>
+                  {copy.eyebrow.toUpperCase()}
+                  {view.specialRound && view.phase !== "over" ? " · SPECIAL ELECTION" : ""}
+                </span>
+                {spectating ? (
+                  <span
+                    className={`${oswald.className} border px-1.5 text-[8.5px] font-semibold uppercase leading-4 tracking-[0.2em]`}
+                    style={{ borderColor: SLATE, color: SLATE_DEEP, background: "#dde3e3" }}
+                  >
+                    Press gallery · observing
+                  </span>
+                ) : null}
+                {deceased ? (
+                  <span
+                    className={`${oswald.className} border px-1.5 text-[8.5px] font-semibold uppercase leading-4 tracking-[0.2em]`}
+                    style={{ borderColor: INK, color: INK_SOFT, background: "#ddd3ba" }}
+                  >
+                    Deceased · you watch in silence
+                  </span>
+                ) : null}
               </div>
-              <h2 className={`${oswald.className} mt-1 text-xl font-bold uppercase leading-none tracking-[0.08em] sm:text-2xl`}>
+              <h2
+                className={`${oswald.className} mt-1 text-xl font-bold uppercase leading-none tracking-[0.08em] sm:text-2xl 2xl:text-[28px]`}
+              >
                 {copy.title}
               </h2>
-              <p className={`${typewriter.className} mt-1 max-w-xl text-[10.5px] leading-4`} style={{ color: INK_FADE }}>
-                {copy.hint}
-              </p>
+              {tight ? null : (
+                <p
+                  className={`${typewriter.className} mt-1 line-clamp-2 max-w-2xl text-[10.5px] leading-4 lg:text-[11.5px] 2xl:text-[12.5px]`}
+                  style={{ color: INK_FADE }}
+                >
+                  {copy.hint}
+                </p>
+              )}
             </div>
             <Timer text={clock} urgent={urgent} />
           </section>
 
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${view.phase}-${view.elections.length}-${view.liberalTrack}-${view.fascistTrack}-${view.tracker}-${view.vetoRefused}`}
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
-              transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE }}
-            >
-              <Stage
+          <div className="mt-3 flex min-h-0 flex-1 flex-col lg:mt-4">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
                 key={`${view.phase}-${view.elections.length}-${view.liberalTrack}-${view.fascistTrack}-${view.tracker}-${view.vetoRefused}`}
+                className="flex min-h-0 flex-1 flex-col"
+                initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+                transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE }}
+              >
+                <Stage
+                  key={`${view.phase}-${view.elections.length}-${view.liberalTrack}-${view.fascistTrack}-${view.tracker}-${view.vetoRefused}`}
+                  view={view}
+                  youId={youId}
+                  spectating={spectating}
+                  send={move}
+                  tight={tight}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {showRole ? (
+            <div className="mt-3 shrink-0 lg:hidden">
+              <DossierStrip
                 view={view}
                 youId={youId}
-                spectating={spectating}
-                send={move}
+                sealed={sealed}
+                onToggle={() => setSealed((h) => !h)}
+                cardW={stripCardW}
               />
-            </motion.div>
-          </AnimatePresence>
-
-          {!spectating && view.yourRole ? (
-            <div className="mt-4 lg:hidden">
-              <RolePanel view={view} youId={youId} sealed={sealed} onToggle={() => setSealed((h) => !h)} />
             </div>
           ) : null}
         </div>
 
-        <aside className="min-w-0">
-          {!spectating && view.yourRole ? (
-            <div className="mb-4 hidden lg:block">
-              <RolePanel view={view} youId={youId} sealed={sealed} onToggle={() => setSealed((h) => !h)} />
-            </div>
+        <aside className="hidden min-h-0 w-[clamp(290px,24vw,380px)] shrink-0 flex-col gap-4 lg:flex">
+          {showRole ? (
+            <RolePanel view={view} youId={youId} sealed={sealed} onToggle={() => setSealed((h) => !h)} cardW={desktopCardW} />
           ) : null}
-          <div className={`${mobileLogOpen ? "block" : "hidden"} lg:block`}>
-            <div className="relative border-2 p-3.5" style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}>
-              <div className="flex items-center justify-between">
-                <div className={`${oswald.className} text-[9px] font-bold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
-                  The record
-                </div>
-                <span className={`${typewriter.className} text-[9px] tabular-nums`} style={{ color: INK_FADE }}>
-                  {view.log.length}
-                </span>
+          <div
+            className="relative flex min-h-0 flex-1 flex-col border-2 p-3.5"
+            style={{ borderColor: INK, background: "#e6dcbf", boxShadow: PRESS_SHADOW_SM }}
+          >
+            <div className="flex shrink-0 items-center justify-between">
+              <div className={`${oswald.className} text-[9px] font-bold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
+                The record
               </div>
-              <div className="mt-3 max-h-[30dvh] space-y-2.5 overflow-y-auto pr-1 lg:max-h-[46dvh]" aria-live="polite">
-                {[...view.log].reverse().map((entry, index) => (
-                  <div
-                    key={entry.i}
-                    className="border-l-2 pl-2.5"
-                    style={{ borderColor: index === 0 ? VERM : `${INK}44` }}
-                  >
-                    <div className={`${typewriter.className} text-[10.5px] leading-4`} style={{ color: index === 0 ? INK : INK_SOFT }}>
-                      {logText(entry)}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <span className={`${typewriter.className} text-[9px] tabular-nums`} style={{ color: INK_FADE }}>
+                {view.log.length}
+              </span>
+            </div>
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+              <RecordList log={view.log} />
             </div>
           </div>
         </aside>
       </main>
+
+      {/* below desktop the record is a sheet over the chamber, never a page scroll */}
+      <AnimatePresence>
+        {mobileLogOpen ? (
+          <motion.div
+            className="absolute inset-0 z-20 lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <div className="absolute inset-0 bg-[#0d0a07]/55" onClick={() => setMobileLogOpen(false)} />
+            <motion.div
+              role="dialog"
+              aria-label="The record"
+              className="absolute inset-x-0 bottom-0 flex max-h-[72%] flex-col border-t-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+              style={{ background: "#e6dcbf", borderColor: INK, boxShadow: "0 -6px 0 rgba(13,10,7,0.35)" }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ duration: reduceMotion ? 0 : 0.28, ease: EASE }}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b-2 pb-2.5" style={{ borderColor: `${INK}33` }}>
+                <div className={`${oswald.className} text-[10px] font-bold uppercase tracking-[0.3em]`} style={{ color: INK_SOFT }}>
+                  The record <span className={`${typewriter.className} ml-1`} style={{ color: INK_FADE }}>{view.log.length}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileLogOpen(false)}
+                  aria-label="Close the record"
+                  className={toolBtn}
+                  style={{ borderColor: INK, color: INK_SOFT }}
+                >
+                  <Icons.x size={14} />
+                </button>
+              </div>
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                <RecordList log={view.log} />
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {ballotActive && lastElection ? (
         <BallotRevealOverlay election={lastElection} players={view.players} reduce={reduceMotion} />

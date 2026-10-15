@@ -10,7 +10,7 @@ import { ChipStack, ChipSvg } from "./Chips";
 
 const GOLD = "#c9a961";
 const panelCls =
-  "relative w-full max-w-md rounded-xl border border-[#c9a961]/50 bg-[#0a1f18]/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur";
+  "relative max-h-full w-full max-w-md overflow-y-auto rounded-xl border border-[#c9a961]/50 bg-[#0a1f18]/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)] backdrop-blur [scrollbar-width:thin]";
 
 /* ---------------- hand over / showdown ---------------- */
 
@@ -26,10 +26,12 @@ export function ShowdownOverlay({
   const hand = v.lastHand!;
   const secs = v.deadline ? Math.max(0, Math.ceil((v.deadline - nowEst) / 1000)) : 0;
   const youWon = hand.winnerId === youId;
+  // a big showdown lays its hands out two-up so it fits without scrolling
+  const wide = hand.revealed.length > 3;
 
   return (
     <motion.div
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px]"
+      className="absolute inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/55 px-3 pb-3 pt-16 backdrop-blur-[2px]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -50,7 +52,7 @@ export function ShowdownOverlay({
       ))}
 
       <motion.div
-        className={panelCls}
+        className={`${panelCls} ${wide ? "sm:max-w-2xl" : ""}`}
         initial={{ scale: 0.85, y: 24 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -70,11 +72,11 @@ export function ShowdownOverlay({
         </div>
 
         {hand.revealed.length > 0 ? (
-          <div className="mt-4 space-y-2.5">
+          <div className={`mt-4 grid ${wide ? "gap-2 sm:grid-cols-2" : "gap-2.5"}`}>
             {hand.revealed.map((r, ri) => (
               <div
                 key={r.id}
-                className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+                className={`flex items-center gap-3 rounded-lg border px-3 ${wide ? "py-1.5" : "py-2"} ${
                   r.id === hand.winnerId
                     ? "border-[#c9a961]/70 bg-[#123328]"
                     : "border-[#2a4438]/70 bg-[#08170f]/80"
@@ -93,7 +95,7 @@ export function ShowdownOverlay({
                   {r.cards.map((c, ci) => (
                     <motion.div
                       key={ci}
-                      className="w-9"
+                      className={wide ? "w-8" : "w-9"}
                       initial={{ rotateY: 90, opacity: 0 }}
                       animate={{ rotateY: 0, opacity: 1 }}
                       transition={{ delay: 0.75 + ri * 0.25 + ci * 0.12, duration: 0.4 }}
@@ -143,7 +145,7 @@ export function SessionOverOverlay({
 
   return (
     <motion.div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 px-3 pb-3 pt-16 backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

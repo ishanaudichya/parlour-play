@@ -76,7 +76,7 @@ export function CoupScreen({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex h-dvh min-h-0 flex-col overflow-hidden"
       style={{
         background:
           "radial-gradient(1100px 700px at 50% -12%, #221a30 0%, rgba(34,26,48,0) 60%), radial-gradient(900px 600px at 85% 110%, #1a1226 0%, rgba(26,18,38,0) 55%), linear-gradient(180deg, #0d0a13 0%, #080609 100%)",
