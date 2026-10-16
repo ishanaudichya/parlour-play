@@ -144,6 +144,11 @@ body::before {
   background-size: 7px 7px;
 }
 
+/* the door's "come in" is skipped on a return visit (set before first paint) */
+html[data-entered="1"] .door-gate {
+  display: none;
+}
+
 .no-scrollbar {
   scrollbar-width: none;
 }
@@ -319,7 +324,25 @@ button:disabled {
   animation: pa-nudge 4.5s ease-in-out infinite;
 }
 
+/* the music pill's equaliser */
+@keyframes pa-eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  35% {
+    transform: scaleY(1);
+  }
+  65% {
+    transform: scaleY(0.55);
+  }
+}
+.eq-bar {
+  animation: pa-eq 1.1s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .eq-bar,
   .marquee-track,
   .twinkle,
   .drift,

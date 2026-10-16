@@ -14,7 +14,7 @@ import type { GameType } from "@/lib/games/types";
 import { PARTY_MAX, type PartyMemberView, type PartyMove, type PartyView } from "@/lib/party/types";
 import { BILLING, GAME_ORDER, SHELVES, type Shelf } from "./catalog";
 import { LiveDot, useMuted } from "./PartyMenu";
-import { Avatar, Bleed, EASE, Lineup, liftAccent, PosterFrame, soloBill, Spark, stageName, Ticker, TopStrip, useFlash } from "./stage";
+import { Avatar, Bleed, EASE, Feed, Lineup, liftAccent, MusicPill, PosterFrame, soloBill, Spark, stageName, TopStrip, useFlash } from "./stage";
 
 type Filter = "all" | "fits" | Shelf;
 
@@ -725,7 +725,6 @@ export function PartyLobby({
   const votersOf = (k: GameType) => v.members.filter((m) => v.votes[m.id] === k);
   const free = PARTY_MAX - n;
   const ticker: string[] = [
-    `Table ${v.code}`,
     `${hostName} deals tonight`,
     ...(v.spotlight && !spinning ? [`${hostName} is eyeing ${stageName(v.spotlight.game)}`] : []),
     ...v.members.filter((m) => v.votes[m.id]).map((m) => `${m.name} wants ${stageName(v.votes[m.id])}`),
@@ -741,6 +740,7 @@ export function PartyLobby({
       <Bleed className="-left-64 -top-72 opacity-60" size={700} />
 
       <TopStrip>
+        <Feed items={ticker} className="hidden max-w-[380px] font-ui text-[13px] text-dust xl:flex" />
         <span className="smallprint hidden items-center gap-2 text-dust sm:flex">
           <LiveDot c={connection} />
           {connection === "live" ? "Live" : connection === "degraded" ? "Reconnecting" : "Connecting"}
@@ -754,6 +754,7 @@ export function PartyLobby({
         >
           <SoundIcon muted={muted} />
         </IconButton>
+        <MusicPill className="hidden sm:flex" />
         <button
           type="button"
           onClick={onLeave}
@@ -762,7 +763,7 @@ export function PartyLobby({
           Leave
         </button>
       </TopStrip>
-      <Ticker className="smallprint relative z-10 mb-4 border-y border-seam py-2 text-dust lg:mb-5" items={ticker} />
+      <Feed items={ticker} className="relative z-10 mx-4 mb-3 font-ui text-[13px] text-dust sm:mx-6 xl:hidden" />
 
       {/* the table: code + seats */}
       <section className="relative z-10 flex flex-col gap-4 px-4 pb-4 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10 lg:px-10 lg:pb-6">

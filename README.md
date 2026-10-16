@@ -35,6 +35,13 @@ server-authoritative engines for every game (nobody can cheat by reading the net
   the full viewport and carries the small Parlour menu (`src/components/party/PartyMenu.tsx`)
   in its own toolbar: invite, sound, end the game (host), leave. If a screen ever renders
   without one, the room floats its own so nobody is stuck in a game.
+- **Doors and music** — a first visit opens on the doors: come in with music or quietly
+  (the tap is what lets the browser play sound). The music (`src/lib/client/music.ts`) plays
+  in the Parlour's own rooms, fades out while a game is on and follows the site-wide mute.
+  The track is Louie Zong's "Ghost Duet", credited on the page as he asks
+  ([louiezong.bandcamp.com](https://louiezong.bandcamp.com/album/ghost-songs)).
+- **No headliners** — the landing deals the fourteen games in a fresh random running order on
+  every visit (rows balanced so no game is billed bigger for good), and the lobby shelf is A–Z.
 - **Real-time, not polling** — clients hold a fetch-based **SSE stream**
   (`/api/party/[code]/stream`, Fluid Compute, 300 s max duration with transparent
   reconnects). Writers `PUBLISH` to **Upstash Redis pub/sub**; streams relay the signal and

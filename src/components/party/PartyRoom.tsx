@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GAME_UI } from "@/components/games/registry";
+import { armMusic, duckMusic } from "@/lib/client/music";
 import { clearSession, useSavedName } from "@/lib/client/session";
 import { primeSound, uiClick } from "@/lib/client/synthCore";
 import { sfx } from "@/lib/client/sound";
@@ -15,14 +16,15 @@ import { useParty } from "@/lib/client/useParty";
 import { GAME_META } from "@/lib/games/registry";
 import type { GameType } from "@/lib/games/types";
 import { PARTY_MAX, type GameScreenProps } from "@/lib/party/types";
-import { LINEUP } from "./catalog";
+import { dealBill, shuffled } from "./catalog";
 import { PartyLobby } from "./PartyLobby";
 import { PartyChromeProvider, PartyMenu } from "./PartyMenu";
 import { Avatar, Bleed, EASE, Marquee, Spark, stageName, Ticket, TicketHead, TicketTear, TopStrip } from "./stage";
 
 /** The bill, faint and huge, sliding past behind the door's ticket. */
 function Backdrop() {
-  const rows = LINEUP.filter((r): r is GameType[] => typeof r !== "string");
+  // the room only renders in the browser, so a fresh deal per visit is safe
+  const [rows] = useState(() => dealBill(shuffled(), 4, [3, 4]));
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col justify-center gap-[2vh] overflow-hidden opacity-[0.075]">
       {rows.map((r, i) => (
@@ -330,6 +332,10 @@ export function PartyRoom({ code }: { code: string }) {
   const isHost = !!view && view.hostId === view.youId;
   const gv = inGame ? (view!.game!.view as { winner?: unknown; winnerId?: unknown } | null) : null;
   const gameFinished = !!gv && (gv.winner != null || gv.winnerId != null);
+
+  // the Parlour's music plays in its own rooms and steps aside for the games
+  useEffect(() => armMusic(), []);
+  useEffect(() => duckMusic(!!inGame), [inGame]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setOrphan(!!inGame && menus === 0), menus === 0 ? 900 : 0);

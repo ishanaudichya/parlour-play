@@ -1,8 +1,8 @@
 /* The Parlour's programme: how each game is billed on the landing lineup and
    in the lobby. Display-only; player limits come from GAME_META. */
 
+import { GAME_META } from "@/lib/games/registry";
 import type { GameType } from "@/lib/games/types";
-import type { BillRow } from "./stage";
 
 export type Shelf = "roles" | "cards" | "board" | "quick";
 
@@ -97,45 +97,53 @@ export const BILLING: Record<GameType, Billing> = {
   },
 };
 
-/** The order games appear in the lobby. */
-export const GAME_ORDER: GameType[] = [
-  "coup",
-  "secrethitler",
-  "avalon",
-  "mafia",
-  "uno",
-  "monodeal",
-  "teenpatti",
-  "staccs",
-  "tanks",
-  "battleship",
-  "ludo",
-  "chainreaction",
-  "connect4",
-  "dots",
-];
+const NAME_OF = (k: GameType) => BILLING[k].stage ?? GAME_META[k].title;
 
-/** The landing lineup, printed like a festival bill: each row is set to the
-    full width, so short rows print big. Headliners first. */
-export const LINEUP: BillRow[] = [
-  ["coup", "uno", "avalon"],
-  "with",
-  ["secrethitler", "mafia"],
-  ["monodeal", "teenpatti", "ludo"],
-  "and, in the back room",
-  ["tanks", "battleship", "staccs"],
-  ["connect4", "chainreaction", "dots"],
-];
+/** The lobby shelf, A to Z — no game is billed above another. */
+export const GAME_ORDER: GameType[] = (Object.keys(BILLING) as GameType[]).sort((a, b) =>
+  NAME_OF(a).localeCompare(NAME_OF(b))
+);
 
-/** Narrow screens get shorter rows. */
-export const LINEUP_NARROW: BillRow[] = [
-  ["coup", "uno"],
-  ["avalon", "mafia"],
-  ["secrethitler"],
-  "with",
-  ["monodeal", "ludo"],
-  ["teenpatti", "staccs"],
-  ["tanks", "battleship"],
-  ["connect4", "dots"],
-  ["chainreaction"],
-];
+/** A fresh shuffle of every game (Fisher–Yates). */
+export function shuffled(rng: () => number = Math.random): GameType[] {
+  const out = [...GAME_ORDER];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** Deal games, in order, into `rows` rows of the bill. Every row is set
+    wall to wall, so a row with fewer letters prints bigger; the split is
+    chosen to make the rows as even as possible, so the bill has no
+    headliners — just tonight's running order. */
+export function dealBill(order: GameType[], rows: number, perRow: [number, number] = [2, 3]): GameType[][] {
+  const len = order.map((k) => NAME_OF(k).length + 2); // + the spark between names
+  const n = order.length;
+  const [lo, hi] = perRow;
+  const target = len.reduce((a, b) => a + b, 0) / rows;
+  // best[i][r]: cheapest way to set the first i games in r rows
+  const best: number[][] = Array.from({ length: n + 1 }, () => Array(rows + 1).fill(Infinity));
+  const cut: number[][] = Array.from({ length: n + 1 }, () => Array(rows + 1).fill(-1));
+  best[0][0] = 0;
+  for (let i = 1; i <= n; i++)
+    for (let r = 1; r <= rows; r++)
+      for (let k = lo; k <= hi && k <= i; k++) {
+        if (best[i - k][r - 1] === Infinity) continue;
+        let w = 0;
+        for (let j = i - k; j < i; j++) w += len[j];
+        const cost = best[i - k][r - 1] + (w - target) ** 2;
+        if (cost < best[i][r]) {
+          best[i][r] = cost;
+          cut[i][r] = i - k;
+        }
+      }
+  if (best[n][rows] === Infinity) return dealBill(order, rows, [1, Math.max(hi, Math.ceil(n / rows))]);
+  const out: GameType[][] = [];
+  for (let i = n, r = rows; r > 0; r--) {
+    out.unshift(order.slice(cut[i][r], i));
+    i = cut[i][r];
+  }
+  return out;
+}

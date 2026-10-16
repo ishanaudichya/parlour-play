@@ -64,9 +64,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${cinzel.variable} ${inter.variable} ${bigShoulders.variable} ${instrument.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="relative min-h-full flex flex-col">
+        {/* a returning visit (this session) skips the door's "come in" — mark it before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{if(sessionStorage.getItem('parlour.entered'))document.documentElement.dataset.entered='1'}catch(e){}",
+          }}
+        />
         <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>
       </body>
     </html>

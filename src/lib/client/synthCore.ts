@@ -54,6 +54,12 @@ function ac(): AudioContext | null {
   return ctx;
 }
 
+/** The shared AudioContext (created and resumed on demand), for anything
+    that isn't a synth voice — the Parlour's background music. */
+export function audioContext(): AudioContext | null {
+  return ac();
+}
+
 /** Call once on a user gesture so iOS unlocks audio. */
 export function primeSound() {
   loadMuted();

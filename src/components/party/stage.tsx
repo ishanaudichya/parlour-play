@@ -6,10 +6,12 @@
    invitation, lobby) is built from these pieces; the games keep their own
    worlds. */
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GAME_UI } from "@/components/games/registry";
+import { MUSIC, setMusicOn, useMusic } from "@/lib/client/music";
+import { primeSound } from "@/lib/client/synthCore";
 import { GAME_META } from "@/lib/games/registry";
 import type { GameType } from "@/lib/games/types";
 import { BILLING } from "./catalog";
@@ -341,20 +343,69 @@ export function Marquee({
   );
 }
 
-/** A ticker of short items, sparks between them. */
-export function Ticker({ items, seconds, className = "" }: { items: React.ReactNode[]; seconds?: number; className?: string }) {
-  // repeat short lists so one copy is wider than any screen
-  const reps = Math.max(1, Math.ceil(12 / Math.max(1, items.length)));
-  const run = Array.from({ length: reps }, () => items).flat();
+/** What's happening at the table, one line at a time: each item rises in,
+    holds, and gives way to the next. */
+export function Feed({ items, every = 3400, className = "" }: { items: string[]; every?: number; className?: string }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (items.length < 2) return;
+    const id = window.setInterval(() => setI((x) => x + 1), every);
+    return () => window.clearInterval(id);
+  }, [items.length, every]);
+  const text = items.length ? items[i % items.length] : "";
   return (
-    <Marquee seconds={seconds ?? Math.max(28, run.length * 3.2)} className={className}>
-      {run.map((it, i) => (
-        <span key={i} className="flex shrink-0 items-center">
-          <span className="whitespace-nowrap px-4">{it}</span>
-          <Spark size={8} className="shrink-0 text-flare" />
-        </span>
-      ))}
-    </Marquee>
+    <span className={`relative flex min-w-0 items-center gap-2.5 overflow-hidden ${className}`} aria-live="polite">
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-flare opacity-50" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-flare" />
+      </span>
+      <span className="relative block h-[1.3em] min-w-0 flex-1 overflow-hidden">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={`${i}-${text}`}
+            initial={{ y: "110%", opacity: 0, filter: "blur(4px)" }}
+            animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+            exit={{ y: "-110%", opacity: 0, filter: "blur(4px)" }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="absolute inset-x-0 truncate"
+          >
+            {text}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </span>
+  );
+}
+
+/* ---------------- music ---------------- */
+
+/** The music switch: a little equaliser that dances while the track plays. */
+export function MusicPill({ className = "" }: { className?: string }) {
+  const m = useMusic();
+  if (!m.available) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        primeSound();
+        setMusicOn(!m.on);
+      }}
+      aria-pressed={m.on}
+      aria-label={m.on ? "Turn the music off" : "Turn the music on"}
+      title={MUSIC && m.track ? `${m.track.title} — ${MUSIC.artist}` : undefined}
+      className={`group flex h-9 items-center gap-2.5 rounded-full border border-seam px-3.5 text-dust transition hover:border-dust hover:text-bone ${className}`}
+    >
+      <span className="flex h-3.5 items-end gap-[2.5px]" aria-hidden>
+        {[0.9, 0.55, 1, 0.7].map((h, i) => (
+          <span
+            key={i}
+            className={`w-[2.5px] origin-bottom rounded-full ${m.playing ? "eq-bar bg-flare" : "bg-ash"}`}
+            style={{ height: "100%", transform: m.playing ? undefined : `scaleY(${0.25 + h * 0.15})`, animationDelay: `${-i * 0.23}s`, animationDuration: `${0.9 + h * 0.5}s` }}
+          />
+        ))}
+      </span>
+      <span className="smallprint">{m.on ? "Music" : "Music off"}</span>
+    </button>
   );
 }
 
