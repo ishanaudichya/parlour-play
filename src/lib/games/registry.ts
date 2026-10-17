@@ -1,4 +1,5 @@
 import { avalonModule } from "./avalon";
+import { bluffModule } from "./bluff";
 import { battleshipModule } from "./battleship";
 import { chainreactionModule } from "./chainreaction";
 import { connect4Module } from "./connect4";
@@ -31,6 +32,7 @@ export const REGISTRY: Partial<Record<GameType, GameModule>> = {
   tanks: tanksModule as GameModule,
   staccs: staccsModule as GameModule,
   dots: dotsModule as GameModule,
+  bluff: bluffModule as GameModule,
 };
 
 /** Display metadata, safe for client import (no engine code). */
@@ -52,4 +54,5 @@ export const GAME_META: Record<
   dots: { title: "Dots and Boxes", tagline: "Draw a line, close a box, go again", min: 2, max: 8, accent: "#2f5bd3" },
   staccs: { title: "STACCS", tagline: "Match in 3D, build the STACC", min: 2, max: 8, accent: "#3d7bff" },
   tanks: { title: "Pocket Tanks", tagline: "Draft an arsenal, level the ridge", min: 2, max: 4, accent: "#ff8a3d" },
+  bluff: { title: "Bluff", tagline: "Three Kings. Honest. Probably.", min: 2, max: 8, accent: "#f5a524" },
 };

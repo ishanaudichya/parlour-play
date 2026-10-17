@@ -7,6 +7,8 @@ import { AvalonScreen } from "./avalon/AvalonScreen";
 import { AvalonPoster } from "./avalon/Poster";
 import { BattleshipScreen } from "./battleship/BattleshipScreen";
 import { BattleshipPoster } from "./battleship/Poster";
+import { BluffPoster } from "./bluff/Poster";
+import { BluffScreen } from "./bluff/BluffScreen";
 import { ChainReactionScreen } from "./chainreaction/ChainReactionScreen";
 import { ChainReactionPoster } from "./chainreaction/Poster";
 import { Connect4Screen } from "./connect4/Connect4Screen";
@@ -56,4 +58,5 @@ export const GAME_UI: Partial<Record<GameType, GameUI>> = {
   tanks: { Screen: asScreen(TanksScreen), Poster: TanksPoster },
   staccs: { Screen: asScreen(StaccsScreen), Poster: StaccsPoster },
   dots: { Screen: asScreen(DotsScreen), Poster: DotsPoster },
+  bluff: { Screen: asScreen(BluffScreen), Poster: BluffPoster },
 };

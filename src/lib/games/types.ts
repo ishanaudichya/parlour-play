@@ -14,7 +14,8 @@ export type GameType =
   | "ludo"
   | "tanks"
   | "staccs"
-  | "dots";
+  | "dots"
+  | "bluff";
 
 export interface GamePlayer {
   id: string;

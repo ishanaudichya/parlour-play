@@ -95,6 +95,11 @@ export const BILLING: Record<GameType, Billing> = {
     shelves: ["board", "quick"],
     stage: "Dots & Boxes",
   },
+  bluff: {
+    pitch: "Put cards down face down and say what they are — \"three Kings\". Lie if you like. Get called and caught, and the whole pile is yours. First to an empty hand wins.",
+    minutes: 15,
+    shelves: ["cards", "roles", "quick"],
+  },
 };
 
 const NAME_OF = (k: GameType) => BILLING[k].stage ?? GAME_META[k].title;

@@ -12,7 +12,7 @@
     "simulate:teenpatti": "tsx scripts/simulate-teenpatti.ts",
     "simulate:monodeal": "tsx scripts/simulate-monodeal.ts",
     "simulate:mafia": "tsx scripts/simulate-mafia.ts",
-    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts && tsx scripts/simulate-battleship.ts && tsx scripts/simulate-connect4.ts && tsx scripts/simulate-avalon.ts && tsx scripts/simulate-secrethitler.ts && tsx scripts/simulate-chainreaction.ts && tsx scripts/simulate-ludo.ts && tsx scripts/simulate-tanks.ts && tsx scripts/simulate-staccs.ts && tsx scripts/simulate-dots.ts && tsx scripts/simulate-party.ts",
+    "simulate:all": "tsx scripts/simulate.ts && tsx scripts/simulate-uno.ts && tsx scripts/simulate-teenpatti.ts && tsx scripts/simulate-monodeal.ts && tsx scripts/simulate-mafia.ts && tsx scripts/simulate-battleship.ts && tsx scripts/simulate-connect4.ts && tsx scripts/simulate-avalon.ts && tsx scripts/simulate-secrethitler.ts && tsx scripts/simulate-chainreaction.ts && tsx scripts/simulate-ludo.ts && tsx scripts/simulate-tanks.ts && tsx scripts/simulate-staccs.ts && tsx scripts/simulate-dots.ts && tsx scripts/simulate-bluff.ts && tsx scripts/simulate-party.ts",
     "simulate:battleship": "tsx scripts/simulate-battleship.ts",
     "simulate:connect4": "tsx scripts/simulate-connect4.ts",
     "simulate:avalon": "tsx scripts/simulate-avalon.ts",
@@ -22,6 +22,7 @@
     "simulate:tanks": "tsx scripts/simulate-tanks.ts",
     "simulate:staccs": "tsx scripts/simulate-staccs.ts",
     "simulate:dots": "tsx scripts/simulate-dots.ts",
+    "simulate:bluff": "tsx scripts/simulate-bluff.ts",
     "simulate:party": "tsx scripts/simulate-party.ts"
   },
   "dependencies": {

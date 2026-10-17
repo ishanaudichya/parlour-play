@@ -1,9 +1,9 @@
-# PARLOUR — fourteen games, one table
+# PARLOUR — fifteen games, one table
 
 A real-time multiplayer party-games platform built for Vercel. Create a **party**, share the
 link or 5-letter code, and your group can play game after game — no accounts, no installs.
 
-**Fourteen games, fourteen design languages:**
+**Fifteen games, fifteen design languages:**
 
 | Game | Players | Look |
 | --- | --- | --- |
@@ -21,6 +21,7 @@ link or 5-letter code, and your group can play game after game — no accounts, 
 | **Dots and Boxes** | 2–8 | an engineer's notebook on a desk: quad ruling, one ink per player, hatched boxes |
 | **STACCS** | 2–8 | isometric toy blocks: white enamel cubes, pixel suits, a cobalt table |
 | **Pocket Tanks** | 2–4 | army-surplus fire-control console, stencil type, amber readouts, a canvas battlefield |
+| **Bluff** | 2–8 | Indian truck art at night: enamel paint, jhalar fringe, brush lettering, the evil eye on every card back |
 
 Everything is code — hand-drawn SVG card art, WebAudio-synthesized sound design, and
 server-authoritative engines for every game (nobody can cheat by reading the network tab).
@@ -40,7 +41,7 @@ server-authoritative engines for every game (nobody can cheat by reading the net
   in the Parlour's own rooms, fades out while a game is on and follows the site-wide mute.
   The track is Louie Zong's "Ghost Duet", credited on the page as he asks
   ([louiezong.bandcamp.com](https://louiezong.bandcamp.com/album/ghost-songs)).
-- **No headliners** — the landing deals the fourteen games in a fresh random running order on
+- **No headliners** — the landing deals the fifteen games in a fresh random running order on
   every visit (rows balanced so no game is billed bigger for good), and the lobby shelf is A–Z.
 - **Real-time, not polling** — clients hold a fetch-based **SSE stream**
   (`/api/party/[code]/stream`, Fluid Compute, 300 s max duration with transparent
@@ -100,6 +101,7 @@ npm run simulate:ludo       # Ludo        (600 games, 2–4 players + geometry a
 npm run simulate:dots       # Dots and Boxes (1120 games on every page size 2×2–12×12, 2–8 players, page re-derived every step)
 npm run simulate:staccs     # STACCS      (2100 games, 2–8 players, every placement re-derived + rule cases)
 npm run simulate:tanks      # Pocket Tanks (30 weapons × 220 random shots with independent replay check, 360 games, rule cases)
+npm run simulate:bluff      # Bluff       (2100 games, 2–8 players, 52-card conservation + view leak checks every step, rule cases)
 npm run simulate:party      # Party lobby (vote + spotlight rule cases, 400 fuzzed lobbies)
 npm run simulate:all
 ```
@@ -176,3 +178,13 @@ npm run simulate:all
   drives per tank. The server resolves each shot at 60 ticks/s into a `ShotRecord` (sampled
   tracks + a timeline of terrain ops, explosions, damage, beams, tracer marks, tank moves); the
   canvas client replays it with Pocket Tanks-style colour-cycling explosions.
+- **Bluff** — the Indian way of playing Cheat (pagat.com's "Bluff", West Bengal), 2–8 players,
+  the whole 52-card pack dealt out. The leader puts down one to four cards face down and names
+  any rank; everyone after must put down more of that same rank or pass, and a pass sits you out
+  for the rest of the round. The count is public, the cards aren't. Anyone — even someone who
+  passed — can call "Bluff!" on the latest play: its cards are turned up, a liar takes the whole
+  pile and a wrongly accused player hands it to the caller, and whoever was right leads the next
+  round. If everyone else passes, the pile is set aside unseen and the last player to put cards
+  down leads. Put down your last cards and the table gets one last call (9 s, or until everyone
+  lets it go): survive it and you win. 40 s turns — a leader who runs out leads their biggest
+  set honestly, a follower passes; leavers' hands are set aside.

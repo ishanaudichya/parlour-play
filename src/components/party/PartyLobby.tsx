@@ -1,6 +1,6 @@
 "use client";
 
-/* The lobby: who's at the table, the fourteen games on the shelf, and the
+/* The lobby: who's at the table, the fifteen games on the shelf, and the
    spotlight — the game the host is pointing at, on every screen at once. The
    host picks (or spins for it) and deals; everyone else reads the bill and
    heckles. Tonight's wins are kept in tally marks. */

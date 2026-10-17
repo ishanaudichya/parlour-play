@@ -1,6 +1,6 @@
 "use client";
 
-/* The door. A gig poster for game night: the fourteen games printed as a
+/* The door. A gig poster for game night: the fifteen games printed as a
    festival bill, set wall to wall — dealt in a fresh running order on every
    visit, so no game is the headliner — and an admission ticket to start a
    party or join one. Hover a name to see its poster; click it to open the
@@ -183,7 +183,7 @@ function Doors({ onEnter }: { onEnter: (music: boolean) => void }) {
           <br />
           are open
         </h1>
-        <p className="mt-5 font-aside text-[22px] italic text-dust sm:text-[26px]">Fourteen games, one table, your people.</p>
+        <p className="mt-5 font-aside text-[22px] italic text-dust sm:text-[26px]">Fifteen games, one table, your people.</p>
         <button
           type="button"
           autoFocus
@@ -348,7 +348,7 @@ export function Landing() {
             <Spark size={9} /> Admit one · game night
           </>
         }
-        right="Nº 14"
+        right="Nº 15"
       />
       <div className="px-5 pb-1 pt-4 sm:px-6">
         <label htmlFor="door-name" className="smallprint text-void/55">
@@ -450,7 +450,7 @@ export function Landing() {
       <Bleed className="-right-40 -top-48 opacity-50" color="var(--color-sun)" size={520} />
 
       <TopStrip>
-        <span className="smallprint hidden text-dust md:inline">14 games · 2–8 players · free</span>
+        <span className="smallprint hidden text-dust md:inline">15 games · 2–8 players · free</span>
         <MusicPill />
       </TopStrip>
 
