@@ -3,12 +3,18 @@
 /* Dots and Boxes — a notebook open on a desk. First the host sets the page
    up: how many boxes across, how many down, with presets and a live preview
    everyone can see. Then the page opens and the pens go round: draw a line,
-   close a box, go again. Quiet chrome — the page is the game. */
+   close a box, go again. Quiet chrome — the page is the game.
+
+   Your lines are optimistic: drawing is deterministic and nothing on the page
+   is hidden, so a tapped line is drawn at once by the engine itself — the box
+   it closes, the score, the turn passing — and the server's page replaces
+   that copy when it lands (or puts things back if it refused the line). */
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PartyMenu } from "@/components/party/PartyMenu";
 import { getMutedServerSnapshot, getMutedSnapshot, primeSound, setMuted, subscribeMuted } from "@/lib/client/synthCore";
+import { predictDots } from "@/lib/games/dots/engine";
 import { LINE_MS, MAX_SIDE, MIN_SIDE, SETUP_MS, type DotsMove, type DotsView, type Orient } from "@/lib/games/dots/types";
 import type { GameScreenProps } from "@/lib/party/types";
 import { hand } from "./font";
@@ -109,10 +115,22 @@ function Notebook({
 }
 
 export function DotsScreen(props: GameScreenProps<DotsView>) {
-  const { view: v, party, youId, isHost, skew, spectating, move, playAgain, exitToLobby } = props;
-  const nowEst = useNowEst(v.now, skew);
+  const { view: server, party, youId, isHost, skew, spectating, move, playAgain, exitToLobby } = props;
+  const nowEst = useNowEst(server.now, skew);
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, getMutedServerSnapshot);
   const [rulesOpen, setRulesOpen] = useState(false);
+
+  /* --- your lines, drawn before the server has them ---------------------- */
+
+  const [ahead, setAhead] = useState<DotsView | null>(null);
+  // the server caught up (or the game moved on): its page is the page
+  const caughtUp = !!ahead && (server.startedAt !== ahead.startedAt || server.phase !== "play" || server.moves >= ahead.moves);
+  if (caughtUp) setAhead(null);
+  const v = (!caughtUp && ahead) || server;
+  // lines go to the server one at a time, in the order they were drawn; a
+  // refusal drops the copy and anything queued behind it
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const round = useRef(0);
 
   const me = v.players.find((p) => p.id === youId) ?? null;
   const turnPlayer = v.players.find((p) => p.id === v.turn) ?? null;
@@ -124,6 +142,21 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
   const tallies = party.tallies.dots ?? {};
 
   const send = (m: DotsMove) => move(m);
+
+  function drawLine(o: Orient, r: number, c: number) {
+    const m: DotsMove = { type: "line", o, r, c };
+    const next = myTurn ? predictDots(v, m, nowEst) : null;
+    if (!next) return;
+    setAhead(next);
+    const at = round.current;
+    queue.current = queue.current.then(async () => {
+      if (round.current !== at) return;
+      if (!(await move(m))) {
+        round.current++;
+        setAhead(null);
+      }
+    });
+  }
 
   /* --- setup: the host's size, optimistic, remembered for next time ----- */
 
@@ -163,7 +196,8 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
     prev.current = v;
     if (!p || p.startedAt !== v.startedAt) return;
     if (p.phase === "setup" && v.phase === "play") dotsSfx("page");
-    if (v.last && v.last.seq !== p.last?.seq) {
+    // forward only: a line the server refused isn't drawn twice when it's put back
+    if (v.last && v.last.seq > (p.last?.seq ?? 0)) {
       dotsSfx("scratch");
       if (v.last.boxes.length) window.setTimeout(() => dotsSfx("box"), 200);
     }
@@ -361,7 +395,7 @@ export function DotsScreen(props: GameScreenProps<DotsView>) {
                 initials={initials}
                 last={v.last}
                 drawAs={myTurn && me ? me.seat : null}
-                onLine={(o: Orient, r: number, c: number) => send({ type: "line", o, r, c })}
+                onLine={drawLine}
               />
             </Notebook>
             {/* reserved, so the page doesn't resize when it becomes your turn */}

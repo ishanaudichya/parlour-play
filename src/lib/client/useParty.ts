@@ -21,7 +21,8 @@ export interface PartyApi {
   clearToast: () => void;
   skew: number;
   join: (name: string) => Promise<string | null>;
-  move: (m: PartyMove) => Promise<void>;
+  /** resolves true once the server has taken the move, false if it refused it */
+  move: (m: PartyMove) => Promise<boolean>;
 }
 
 export function useParty(code: string): PartyApi {
@@ -213,9 +214,9 @@ export function useParty(code: string): PartyApi {
   );
 
   const move = useCallback(
-    async (m: PartyMove) => {
+    async (m: PartyMove): Promise<boolean> => {
       const s = sessionRef.current;
-      if (!s) return;
+      if (!s) return false;
       try {
         const res = await fetch(`/api/party/${code}/move`, {
           method: "POST",
@@ -226,11 +227,13 @@ export function useParty(code: string): PartyApi {
         if (!res.ok) {
           if (data.error) setToast(data.error);
           void pollOnce();
-          return;
+          return false;
         }
         applyView(data.view);
+        return true;
       } catch {
         setToast("Network error — try again.");
+        return false;
       }
     },
     [code, applyView, authHeaders, pollOnce]

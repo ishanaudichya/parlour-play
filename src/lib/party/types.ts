@@ -113,8 +113,8 @@ export interface GameScreenProps<V = unknown> {
   skew: number;
   /** you are watching but not seated in this game */
   spectating: boolean;
-  /** dispatch a module-specific game move */
-  move: (m: unknown) => void;
+  /** dispatch a module-specific game move; resolves false if the server refused it */
+  move: (m: unknown) => Promise<boolean>;
   /** host only: start the same game again (fresh deal) */
   playAgain: () => void;
   /** host only: end the game and return everyone to the lobby */

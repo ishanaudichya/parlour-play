@@ -2,9 +2,10 @@
    sizes (2×2 … 12×12) at every table size (2–8), with the whole page
    re-derived every step — a box is claimed exactly when its four sides are
    drawn, by whoever drew the fourth; scores equal boxes; the mover goes again
-   after a box and only then — plus setup, timeouts, walk-outs and rule cases.
+   after a box and only then; the client's optimistic page matches the
+   server's exactly — plus setup, timeouts, walk-outs and rule cases.
    Run: npx tsx scripts/simulate-dots.ts */
-import { applyDotsMove, autoLine, forfeitDots, initDots, lineAt, openLines, redactDots, sidesDrawn, tickDots, totalLines, dotsModule } from "../src/lib/games/dots/engine";
+import { applyDotsMove, autoLine, forfeitDots, initDots, lineAt, openLines, predictDots, redactDots, sidesDrawn, tickDots, totalLines, dotsModule } from "../src/lib/games/dots/engine";
 import { MAX_SIDE, MIN_SIDE, type DotsMove, type DotsState } from "../src/lib/games/dots/types";
 import { MoveError, type GamePlayer } from "../src/lib/games/types";
 
@@ -100,8 +101,14 @@ function playGame(n: number, seed: number): DotsState {
       const lines = openLines(s);
       const [o, r, c] = rng() < 0.5 ? autoLine(s, rng) : lines[Math.floor(rng() * lines.length)];
       const other = s.players.find((q) => q.id !== p.id && !q.left);
-      if (other) expectReject(s, other.id, { type: "line", o, r, c }, "out of turn");
+      if (other) {
+        expectReject(s, other.id, { type: "line", o, r, c }, "out of turn");
+        if (predictDots(redactDots(s, other.id, now), { type: "line", o, r, c }, now)) fail("predicted an out-of-turn line");
+      }
+      // the client's optimistic page must be exactly the page the server sends back
+      const predicted = predictDots(redactDots(s, p.id, now), { type: "line", o, r, c }, now);
       applyDotsMove(s, p.id, { type: "line", o, r, c }, now, rng);
+      if (JSON.stringify(predicted) !== JSON.stringify(redactDots(s, p.id, now))) fail(`step ${step}: prediction differs from the server's page`);
       if (lineAt(s, o, r, c) !== p.seat) fail("line not recorded");
       expectReject(s, s.turn || p.id, { type: "line", o, r, c }, "drew a line twice");
     }

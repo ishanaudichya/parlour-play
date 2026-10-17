@@ -401,7 +401,7 @@ export function PartyRoom({ code }: { code: string }) {
             isHost={isHost}
             skew={skew}
             spectating={!seated}
-            move={(m) => void move({ kind: "game", move: m })}
+            move={(m) => move({ kind: "game", move: m })}
             playAgain={() => void move({ kind: "party", action: "start_game", game: view.game!.type })}
             exitToLobby={() => void move({ kind: "party", action: "end_game" })}
           />

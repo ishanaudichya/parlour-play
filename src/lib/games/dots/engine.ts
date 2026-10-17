@@ -323,6 +323,24 @@ export function redactDots(s: DotsState, viewerId: string, now: number): DotsVie
   };
 }
 
+/**
+ * The view `v`'s viewer gets back once the server has their `move` — so a
+ * line can be drawn the moment it's tapped. Drawing is deterministic and the
+ * page is perfect information, so this is exact (the fuzz test holds it to
+ * that). null for anything but a line the server would accept.
+ */
+export function predictDots(v: DotsView, move: DotsMove, now: number): DotsView | null {
+  if (move.type !== "line") return null;
+  const s: DotsState = { ...structuredClone(v), logSeq: v.log.at(-1)?.i ?? 0, updatedAt: now };
+  try {
+    applyDotsMove(s, v.youId, move, now, () => 0);
+  } catch (e) {
+    if (e instanceof MoveError) return null;
+    throw e;
+  }
+  return redactDots(s, v.youId, v.now);
+}
+
 export const dotsModule: GameModule<DotsState, DotsView, DotsMove> = {
   type: "dots",
   minPlayers: 2,
